@@ -1,0 +1,10 @@
+{
+	"dependencies": {
+		"react-router-dom": "^7.18.2",
+		"lucide-react": "^1.30.0",
+		"clsx": "^2.1.1",
+		"tailwind-merge": "^3.6.0",
+		"@xyflow/react": "^12.11.2",
+		"zod": "^4.4.3"
+	}
+}
