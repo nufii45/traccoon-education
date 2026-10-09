@@ -30,6 +30,8 @@ interface StudySessionProps {
   sourceName: string
   onAttempt: (selectedIndex: number, isCorrect: boolean, cardId: string) => Promise<unknown>
   onBack: () => void
+  /** Label for the exit button; Practice from the Learning Hub returns there instead. */
+  backLabel?: string
 }
 
 const letter = (index: number) => String.fromCharCode(65 + index)
@@ -38,7 +40,7 @@ const letter = (index: number) => String.fromCharCode(65 + index)
  * One card at a time with immediate feedback, a source view for every card,
  * and an end screen listing missed cards. Attempts are saved locally.
  */
-export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack }: StudySessionProps) {
+export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack, backLabel = 'Back to pantry' }: StudySessionProps) {
   const [state, dispatch] = useReducer(studyReducer, cards, createStudySession)
   const [selected, setSelected] = useState<number>()
   const [sourceCard, setSourceCard] = useState<StoredCard>()
@@ -105,7 +107,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
             <div className="step-label">SESSION COMPLETE</div>
             <h2 id="study-summary-heading" ref={summaryRef} tabIndex={-1}>{score.correct} of {score.answered} correct</h2>
           </div>
-          <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />Back to pantry</button>
+          <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />{backLabel}</button>
         </div>
         {missed.length > 0 ? (
           <div className={styles.missed}>
@@ -155,7 +157,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
           <div className="step-label">STUDY MODE</div>
           <h2 id="study-card-heading">Card {state.position + 1} of {state.cards.length}</h2>
         </div>
-        <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />Back to pantry</button>
+        <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />{backLabel}</button>
       </div>
       <div
         aria-label="Session progress"
