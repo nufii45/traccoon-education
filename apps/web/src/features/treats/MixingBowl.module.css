@@ -1,0 +1,425 @@
+/* Interactive mixing bowl. Tokens from themes.ts; confetti/burst reuse the
+   IngredientCelebration patterns. 44px targets, legible at 390px. */
+
+.dialog {
+  width: min(480px, calc(100% - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--color-neutral);
+}
+
+.dialog::backdrop {
+  background: var(--color-overlay);
+  animation: fade-in 200ms ease-out;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: 2px solid var(--color-neutral);
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 18%, var(--color-warning-surface) 0, var(--color-surface) 60%);
+  box-shadow: var(--shadow-floating);
+  text-align: center;
+  isolation: isolate;
+  animation: card-pop 420ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-primary);
+  font: var(--font-weight-extrabold) var(--text-label) var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font: var(--font-weight-extrabold) var(--text-lead) / 1.15 var(--font-sans);
+  letter-spacing: var(--letter-spacing-compact);
+}
+
+.prompt {
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-body);
+}
+
+/* --- Bowl --- */
+
+.bowl {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(260px, 72vw);
+  height: min(260px, 72vw);
+  border: 3px solid var(--color-neutral);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 38%, var(--color-surface) 0 48%, var(--color-secondary) 70%, var(--color-surface-muted) 100%);
+  box-shadow: inset 0 -14px 26px rgb(130 88 42 / 18%), var(--shadow-card);
+  touch-action: none;
+}
+
+.bowlMixing {
+  cursor: grab;
+}
+
+.bowlInner {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 78%;
+  height: 78%;
+  border-radius: 50%;
+}
+
+.bowlHint {
+  color: var(--color-muted);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+/* Each placed ingredient sits on an orbit; the bowl spins the whole group while mixing. */
+.orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  transform: translate(-50%, -50%) rotate(var(--angle)) translateX(58px) rotate(calc(-1 * var(--angle)));
+  cursor: pointer;
+  animation: orbit-in 420ms cubic-bezier(0.3, 1.5, 0.5, 1) var(--orbit-delay) both;
+}
+
+.orbit:disabled {
+  cursor: default;
+}
+
+.orbit img {
+  filter: drop-shadow(0 6px 5px rgb(130 88 42 / 22%));
+  animation: float 2600ms ease-in-out infinite;
+}
+
+.bowlMixing .bowlInner {
+  animation: swirl calc(2600ms - var(--mix, 0) * 1600ms) linear infinite;
+}
+
+.bowlMixing .orbit img {
+  animation: spin calc(1400ms - var(--mix, 0) * 700ms) linear infinite;
+}
+
+.spinner {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  border: 5px solid var(--color-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 820ms linear infinite;
+}
+
+/* --- Ingredient tray --- */
+
+.tray {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.trayItem {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap-target);
+  padding: var(--space-2);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: transform var(--motion-quick) ease, border-color var(--motion-quick) ease;
+}
+
+.trayItem:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.trayItem:disabled {
+  cursor: default;
+}
+
+.trayItem:disabled:not(.trayPlaced) {
+  opacity: 0.5;
+}
+
+.trayItem small {
+  line-height: 1.2;
+}
+
+.trayPlaced {
+  border-color: var(--color-primary);
+  background: var(--color-success-surface);
+}
+
+.trayPlaced img {
+  opacity: 0.65;
+}
+
+.check {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-extrabold);
+}
+
+/* --- Mix controls --- */
+
+.mixControls {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.progress {
+  height: 10px;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+}
+
+.progress > div {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-tertiary);
+  transition: width var(--motion-quick) linear;
+}
+
+.holdButton {
+  touch-action: none;
+}
+
+/* --- Reveal --- */
+
+.reveal {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+}
+
+.revealArt {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 220px;
+  height: 220px;
+}
+
+.burst {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgb(255 239 90 / 70%) 0 32%, transparent 62%),
+    repeating-conic-gradient(rgb(229 169 60 / 38%) 0 10deg, transparent 10deg 22.5deg);
+  animation: burst-spin 9s linear infinite, burst-in 520ms ease-out both;
+}
+
+.revealIcon {
+  position: relative;
+  filter: drop-shadow(0 12px 10px rgb(130 88 42 / 22%));
+  animation: icon-bounce 900ms cubic-bezier(0.3, 1.6, 0.5, 1) 120ms both;
+}
+
+.revealCopy {
+  margin: 0;
+  font: var(--font-weight-extrabold) var(--text-lead) / 1.2 var(--font-sans);
+}
+
+.confetti {
+  position: absolute;
+  top: 36%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  animation: confetti-burst var(--duration) cubic-bezier(0.15, 0.7, 0.4, 1) var(--delay) forwards;
+}
+
+.square {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.strip {
+  width: 6px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.round {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+/* --- Actions --- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: center;
+  width: 100%;
+}
+
+.action {
+  min-width: 160px;
+}
+
+/* --- Keyframes --- */
+
+@keyframes orbit-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateX(0) rotate(calc(-1 * var(--angle))) scale(0.3);
+  }
+}
+
+@keyframes float {
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes swirl {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes confetti-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(var(--dx), var(--dy)) rotate(calc(var(--spin) * 0.4)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--dx) * 1.25), calc(var(--dy) + var(--fall))) rotate(var(--spin)) scale(0.9);
+  }
+}
+
+@keyframes card-pop {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.85);
+  }
+}
+
+@keyframes icon-bounce {
+  0% {
+    transform: scale(0.2) rotate(-18deg);
+  }
+  60% {
+    transform: scale(1.12) rotate(6deg);
+  }
+}
+
+@keyframes burst-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes burst-in {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog::backdrop,
+  .card,
+  .orbit,
+  .revealIcon,
+  .burst {
+    animation: none;
+  }
+
+  .orbit img,
+  .bowlMixing .bowlInner,
+  .bowlMixing .orbit img,
+  .spinner {
+    animation: none;
+  }
+
+  .progress > div {
+    transition: none;
+  }
+
+  .confetti {
+    display: none;
+  }
+}
+
+@media (max-width: 599px) {
+  .card {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .title {
+    font-size: var(--text-heading);
+  }
+}

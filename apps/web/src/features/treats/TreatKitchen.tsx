@@ -7,6 +7,7 @@ import { INGREDIENTS, TREAT_RECIPES, ingredientById, treatById } from './catalog
 import type { TreatId } from './catalog'
 import { canCraft, missingIngredients, totalIngredients, totalOwnedTreats, type TreatEconomy } from './engine'
 import { IngredientIcon, TreatIcon } from './TreatArt'
+import { MixingBowl } from './MixingBowl'
 import styles from './TreatKitchen.module.css'
 
 type RecipeFilter = 'all' | 'ready' | 'owned'
@@ -94,6 +95,7 @@ export function TreatKitchen() {
   const [filter, setFilter] = useState<RecipeFilter>('all')
   const [isBusy, setIsBusy] = useState(false)
   const [message, setMessage] = useState<{ text: string; isError: boolean }>()
+  const [mixingTreat, setMixingTreat] = useState<TreatId | null>(null)
 
   const load = useCallback(() => {
     setLoadError(undefined)
@@ -118,8 +120,25 @@ export function TreatKitchen() {
     }
   }
 
-  const make = (treatId: TreatId) =>
-    void run(() => pantryRepository.craftTreat(createActionId(), treatId), `Made a ${treatById[treatId].name}. It is on your shelf.`, 'This treat could not be made.')
+  // "Make treat" opens the interactive bowl instead of crafting instantly.
+  // The real, idempotent craft only runs once mixing finishes (commitCraft).
+  const make = (treatId: TreatId) => {
+    if (isBusy) return
+    setMessage(undefined)
+    setMixingTreat(treatId)
+  }
+
+  const commitCraft = useCallback(async (treatId: TreatId): Promise<TreatEconomy> => {
+    const next = (await pantryRepository.craftTreat(createActionId(), treatId)).state
+    setEconomy(next)
+    return next
+  }, [])
+
+  const finishMixing = (treatId: TreatId, next: TreatEconomy) => {
+    setEconomy(next)
+    setMixingTreat(null)
+    setMessage({ text: `Made a ${treatById[treatId].name}. It is on your shelf.`, isError: false })
+  }
 
   const feed = (treatId: TreatId) =>
     void run(() => pantryRepository.feedTreat(createActionId(), treatId), `Rokki enjoyed the ${treatById[treatId].name}.`, 'Rokki could not be fed this treat.')
@@ -202,6 +221,16 @@ export function TreatKitchen() {
       ) : null}
 
       <p className={styles.footnote}>Feeding is always your choice. Studying is never locked by ingredients or treats.</p>
+
+      {economy && mixingTreat ? (
+        <MixingBowl
+          economy={economy}
+          onClose={() => setMixingTreat(null)}
+          onCommitCraft={commitCraft}
+          onViewShelf={(next) => finishMixing(mixingTreat, next)}
+          treatId={mixingTreat}
+        />
+      ) : null}
     </section>
   )
 }

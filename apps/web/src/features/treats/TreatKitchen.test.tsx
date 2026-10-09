@@ -1,11 +1,21 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import App from '../../App'
 import { writeOnboardingState } from '../onboarding/onboardingState'
 import { pantryRepository } from '../pantries/repository'
 import { INGREDIENTS, TREAT_RECIPES } from './catalog'
 
 const recipe = TREAT_RECIPES[0]
+
+// jsdom has no HTMLDialogElement.showModal; stub the open/close behaviour.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute('open')
+  }
+})
 
 /** Answer Quiz cards correctly with draws that land on each of this recipe's ingredients. */
 const collectRecipe = async () => {
@@ -48,13 +58,30 @@ describe('Treat Shelf', () => {
     for (const button of screen.getAllByRole('button', { name: 'Collect ingredients' })) expect(button).toBeDisabled()
   })
 
-  it('makes a treat from collected ingredients and feeds it only on request', async () => {
+  it('makes a treat through the interactive bowl and feeds it only on request', async () => {
     await collectRecipe()
     render(<App />)
 
     const card = await screen.findByRole('article', { name: `${recipe.name} recipe` })
     expect(within(card).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '5')
     fireEvent.click(within(card).getByRole('button', { name: 'Make treat' }))
+
+    // The bowl opens; add every recipe ingredient, then start mixing.
+    const bowl = await screen.findByRole('dialog', { name: recipe.name })
+    for (const ingredient of recipe.ingredients) {
+      const name = INGREDIENTS.find((item) => item.id === ingredient.id)!.name
+      fireEvent.click(within(bowl).getByRole('button', { name: `Add ${name}` }))
+    }
+    expect(within(bowl).getByRole('button', { name: "Let's mix!" })).toBeEnabled()
+    fireEvent.click(within(bowl).getByRole('button', { name: "Let's mix!" }))
+
+    // Drive the accessible keyboard mix to completion (24 ticks of 1/24).
+    const mixButton = within(bowl).getByRole('button', { name: 'Hold to mix' })
+    for (let i = 0; i < 24; i += 1) fireEvent.keyDown(mixButton, { key: 'Enter' })
+
+    // Reveal appears; nothing is on the shelf until the learner confirms.
+    const viewButton = await within(bowl).findByRole('button', { name: 'View in Treat Shelf' })
+    fireEvent.click(viewButton)
 
     expect(await screen.findByText(`Made a ${recipe.name}. It is on your shelf.`)).toBeInTheDocument()
     expect(within(card).getByText('On shelf ×1')).toBeInTheDocument()
