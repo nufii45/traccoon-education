@@ -8,7 +8,7 @@
 }
 
 .dialog::backdrop {
-  background: rgb(20 20 20 / 45%);
+  background: var(--color-overlay);
 }
 
 .panel {
@@ -31,7 +31,7 @@
   margin: 0 0 0 auto;
   width: min(600px, 100vw);
   height: 100dvh;
-  box-shadow: -24px 0 48px rgb(20 20 20 / 12%);
+  box-shadow: var(--shadow-floating);
 }
 
 .drawer[open] {

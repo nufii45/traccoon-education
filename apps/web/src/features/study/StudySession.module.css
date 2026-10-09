@@ -46,14 +46,14 @@
 }
 
 .feedbackCorrect {
-  border-color: #13703a;
-  background: #e6f4eb;
+  border-color: var(--color-success);
+  background: var(--color-success-surface);
   color: var(--ink);
 }
 
 .feedbackWrong {
-  border-color: #be2a1e;
-  background: #fdedeb;
+  border-color: var(--color-danger);
+  background: var(--color-danger-surface);
   color: var(--ink);
 }
 
@@ -87,7 +87,7 @@
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .missedQuestion {
@@ -113,14 +113,14 @@
   display: grid;
   gap: 2px;
   padding: 16px 32px;
-  background: #ecf0fd;
+  background: var(--color-info-surface);
   color: var(--ink);
   font-size: 14px;
   line-height: 1.45;
 }
 
 .evidenceNote strong {
-  color: #2346c8;
+  color: var(--color-info);
 }
 
 .pageText {
@@ -140,7 +140,7 @@
   padding: 1px 2px;
   border-bottom: 2px solid var(--ink);
   border-radius: 3px;
-  background: #ffef5a;
+  background: var(--color-highlight);
   color: var(--ink);
 }
 
