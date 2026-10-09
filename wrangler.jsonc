@@ -1,3 +1,19 @@
+// Cloudflare Workers Builds runs `npx wrangler preview` from the repository
+// root with no install or build step, so this config builds apps/web itself
+// and serves its Vite output as a static-assets-only Worker.
 {
+  "name": "traccoon-education",
+  "compatibility_date": "2026-10-09",
+  "preview_urls": true,
+  "build": {
+    // pnpm 11.20.0 and apps/web/pnpm-lock.yaml are authoritative (AGENTS.md);
+    // the build image ships an older pnpm.
+    "command": "npx --yes pnpm@11.20.0 install --frozen-lockfile && npx --yes pnpm@11.20.0 build",
+    "cwd": "apps/web"
+  },
+  "assets": {
+    "directory": "./apps/web/dist",
+    "not_found_handling": "single-page-application"
+  },
   "previews": {}
 }

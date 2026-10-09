@@ -143,3 +143,12 @@ experience legible at 390 px and 1440 px. Show the Local Private state, model
 status, source evidence, manual-authoring path, review controls, and offline
 behavior accurately. On browsers without WebGPU, show the unsupported state
 and manual authoring rather than pretending local generation is available.
+
+## Deployment
+
+Cloudflare Workers Builds runs `npx wrangler preview` from the repository root
+with no install or build step. The root `wrangler.jsonc` therefore runs the
+`apps/web` install and build itself (`build.command`, pinned to pnpm `11.20.0`)
+and serves `apps/web/dist` as a static-assets-only Worker with single-page
+fallback. To check a deploy config locally from a clean checkout, run
+`npx wrangler deploy --dry-run` at the repository root.
