@@ -43,17 +43,20 @@ describe('deriveGenerationView', () => {
   })
 
   it('maps generating to the questions stage', () => {
-    const view = deriveGenerationView(status({ stage: 'generating', detail: 'Generating', attempt: 1 }), false)
+    const view = deriveGenerationView(status({ stage: 'generating', detail: 'Generating' }), false)
 
     expect(view.activeStageIndex).toBe(2)
     expect(view.segments).toEqual(['completed', 'completed', 'active', 'pending', 'pending'])
   })
 
-  it('maps verifying to the verification stage', () => {
-    const view = deriveGenerationView(status({ stage: 'verifying', detail: 'Checking quotes' }), false)
+  it('keeps the later stages pending through generation until cards arrive', () => {
+    // The committed generator verifies and prepares cards inside the
+    // generating burst without a separate status, so those stages stay pending
+    // until review-ready cards actually exist.
+    const view = deriveGenerationView(status({ stage: 'generating', detail: 'Generating' }), false)
 
-    expect(view.activeStageIndex).toBe(3)
-    expect(view.segments).toEqual(['completed', 'completed', 'completed', 'active', 'pending'])
+    expect(view.segments[3]).toBe('pending')
+    expect(view.segments[4]).toBe('pending')
   })
 
   it('only completes every stage once review-ready cards exist', () => {
@@ -94,7 +97,7 @@ describe('deriveGenerationView', () => {
 })
 
 describe('isGenerationBusy', () => {
-  it.each(['checking', 'downloading', 'ready', 'generating', 'verifying'] as const)('is busy while %s', (stage) => {
+  it.each(['checking', 'downloading', 'ready', 'generating'] as const)('is busy while %s', (stage) => {
     expect(isGenerationBusy({ stage, detail: '' } as LocalAiStatus)).toBe(true)
   })
 

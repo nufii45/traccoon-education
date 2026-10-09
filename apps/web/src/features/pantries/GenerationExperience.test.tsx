@@ -10,8 +10,8 @@ describe('GenerationExperience', () => {
   it('shows the Rokki heading, dynamic status, and stage counter while generating', () => {
     render(
       <GenerationExperience
-        status={{ stage: 'generating', detail: 'Generating', attempt: 1 }}
-        view={viewFor({ stage: 'generating', detail: 'Generating', attempt: 1 })}
+        status={{ stage: 'generating', detail: 'Generating' }}
+        view={viewFor({ stage: 'generating', detail: 'Generating' })}
       />,
     )
 
