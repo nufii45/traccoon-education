@@ -159,6 +159,15 @@ a.modeCard:hover {
   font-size: var(--text-lead);
 }
 
+.pantryRow .modeBody {
+  min-width: 0;
+}
+
+.pantryRow .modeTitle,
+.pantryRow .modeMeta {
+  overflow-wrap: anywhere;
+}
+
 .pantryRow a {
   flex: none;
   text-decoration: none;

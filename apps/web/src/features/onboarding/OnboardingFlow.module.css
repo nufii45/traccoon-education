@@ -43,11 +43,16 @@
   font: 800 24px / 1 var(--font-sans);
 }
 
+.wordmark {
+  display: grid;
+  gap: var(--space-1);
+}
+
 .brand b {
-  margin-left: var(--space-1);
-  color: var(--color-copy);
-  font: 700 var(--text-label) var(--font-sans);
-  letter-spacing: 0.04em;
+  color: var(--color-primary-hover);
+  font: 700 var(--text-label) / 1 var(--font-sans);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .brandMark {

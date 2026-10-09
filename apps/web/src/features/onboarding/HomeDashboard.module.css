@@ -292,6 +292,20 @@
   color: var(--color-neutral);
 }
 
+/* Long titles wrap; the meta line (card count, then file name) stays on one
+   line and truncates, since file names have no spaces to wrap at. */
+.pantryName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pantryMeta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pantryMeta {
   color: var(--color-copy);
   font-size: var(--text-label);

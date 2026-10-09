@@ -35,11 +35,18 @@
   cursor: pointer;
 }
 
+/* Wordmark: "Traccoon" over a spaced, all-caps "EDUCATION".
+   Primary-hover keeps the small caps at 5.79:1 on the sidebar. */
+.brand-wordmark {
+  display: grid;
+  gap: var(--space-1);
+}
+
 .brand b {
-  margin-left: var(--space-1);
-  color: var(--color-copy);
-  font: 700 var(--text-label) var(--font-sans);
-  letter-spacing: 0.04em;
+  color: var(--color-primary-hover);
+  font: 700 var(--text-label) / 1 var(--font-sans);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .brand-mark {
@@ -217,6 +224,11 @@ a.nav-link:hover {
 
 .pantry-link-icon.manual {
   color: var(--color-info);
+}
+
+.pantry-link > span:not(.pantry-link-icon) {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .pantry-link small {
@@ -664,6 +676,12 @@ select:focus-visible {
   font-size: var(--text-heading);
 }
 
+/* Pantry titles and PDF file names can be long words with no spaces. */
+.workspace-header h1,
+.workspace-header p {
+  overflow-wrap: anywhere;
+}
+
 .workspace-header p {
   margin: 0;
   color: var(--color-copy);
@@ -745,11 +763,6 @@ select:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-}
-
-.status-copy {
-  color: var(--color-copy);
-  font-size: var(--text-label);
 }
 
 /* ---------- Cards ---------- */

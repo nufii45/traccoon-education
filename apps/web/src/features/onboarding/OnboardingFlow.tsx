@@ -88,8 +88,8 @@ export function OnboardingFlow({ onComplete, onModeChange, initialMode = 'local-
       <header className={styles.topBar}>
         <div className={styles.brand}>
           <img alt="" className={styles.brandMark} height="36" src={rokkiMark} width="36" />
-          <span>
-            traccoon <b>education</b>
+          <span className={styles.wordmark}>
+            Traccoon <b>Education</b>
           </span>
         </div>
         <button className={styles.skip} onClick={finish} type="button">
