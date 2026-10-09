@@ -8,8 +8,16 @@
 export type WebGpuSupport = 'available' | 'unavailable'
 export type ModelCacheState = 'cached' | 'not-cached' | 'unknown'
 
+/** `halfPrecision` is undefined when the adapter does not list its features. */
+export type GpuReadiness = { support: 'unavailable' } | { support: 'available'; halfPrecision?: boolean }
+
+export interface LocalModelBuilds {
+  primary: string
+  compatibility: string
+}
+
 interface WebGpuLike {
-  requestAdapter: () => Promise<unknown>
+  requestAdapter: () => Promise<{ features?: ReadonlySet<string> } | null | undefined>
 }
 
 type HasModelInCache = (modelId: string) => Promise<boolean>
@@ -22,18 +30,31 @@ const runtimeHasModelInCache: HasModelInCache = async (modelId) => {
   return webllm.hasModelInCache(modelId)
 }
 
-/** Resolves `available` only when the browser grants a WebGPU adapter. */
-export const checkWebGpu = async (gpu: WebGpuLike | undefined = browserWebGpu()): Promise<WebGpuSupport> => {
+/**
+ * Resolves `available` only when the browser grants a WebGPU adapter, and
+ * reports whether that adapter supports `shader-f16`.
+ */
+export const checkWebGpu = async (gpu: WebGpuLike | undefined = browserWebGpu()): Promise<GpuReadiness> => {
   if (!gpu) {
-    return 'unavailable'
+    return { support: 'unavailable' }
   }
 
   try {
-    return (await gpu.requestAdapter()) ? 'available' : 'unavailable'
+    const adapter = await gpu.requestAdapter()
+    return adapter ? { support: 'available', halfPrecision: adapter.features?.has('shader-f16') } : { support: 'unavailable' }
   } catch {
-    return 'unavailable'
+    return { support: 'unavailable' }
   }
 }
+
+/**
+ * The model build the runtime will load first on this GPU. Mirrors
+ * `chooseModelId` in features/local-ai/localAiClient.ts (Member 1's lane):
+ * the compatibility build only when the adapter reports no `shader-f16`.
+ * If that rule changes, change this too, or export the runtime's choice.
+ */
+export const expectedModelId = (halfPrecision: boolean | undefined, builds: LocalModelBuilds) =>
+  halfPrecision === false ? builds.compatibility : builds.primary
 
 /**
  * Reports whether the model's files are already saved in this browser.
