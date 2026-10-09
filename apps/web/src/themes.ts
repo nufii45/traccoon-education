@@ -9,7 +9,7 @@ const colors = {
   tertiaryHover: '#BD831C',
   neutral: '#2B2625',
   copy: '#594D46',
-  muted: '#82746C',
+  muted: '#6D5D54',
   border: '#D8C9C0',
   focus: '#8D6748',
   success: '#13703A',
