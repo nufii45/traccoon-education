@@ -6,6 +6,7 @@ import { writeOnboardingState } from '../onboarding/onboardingState'
 describe('manual pantry', () => {
   beforeEach(() => {
     writeOnboardingState({ completed: true, mode: 'local-private' })
+    window.history.replaceState(null, '', '/')
   })
 
   it('has no fake source page and hides generation', async () => {

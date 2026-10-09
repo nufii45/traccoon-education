@@ -12,7 +12,6 @@ import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
 import { ModelReadinessPanel } from './features/pantries/ModelReadinessPanel'
-import { groupPantriesByRecency, isManualPantry } from './features/pantries/pantryGroups'
 import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
 import { PdfPagePicker } from './features/pantries/PdfPagePicker'
 import { ReviewCard } from './features/pantries/ReviewCard'
@@ -29,34 +28,46 @@ import {
   AlertCircleIcon,
   ArrowRight02Icon,
   Delete02Icon,
-  File01Icon,
   FileUploadIcon,
-  PencilEdit02Icon,
-  SquareLock02Icon,
 } from '@hugeicons/core-free-icons'
-import rokkiMark from './assets/rokki-educ.webp'
+import { BrowserRouter, Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router'
+import { pantryPath, pantryStudyPath } from './app/navigation'
+import { Sidebar } from './app/Sidebar'
 import { Icon } from './components/Icon/Icon'
 import { HomeDashboard } from './features/onboarding/HomeDashboard'
 import { OnboardingFlow } from './features/onboarding/OnboardingFlow'
 import { useOnboarding } from './features/onboarding/useOnboarding'
 import './App.css'
 
-type AppView = 'home' | 'import' | 'workspace' | 'study'
+const IMPORT_PATH = '/pantries/import'
+const MANUAL_PATH = '/pantries/manual'
+
+interface ImportRouteState {
+  openFilePicker?: boolean
+}
 
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
 
+/** Root component: real URLs via the browser history. */
 function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  )
+}
+
+function AppRoutes() {
   const onboarding = useOnboarding()
-  const [view, setView] = useState<AppView>('home')
+  const navigate = useNavigate()
+  const location = useLocation()
   const [summaries, setSummaries] = useState<PantrySummary[]>([])
-  const [activePantry, setActivePantry] = useState<Pantry>()
-  const [showManualStarter, setShowManualStarter] = useState(false)
   const [error, setError] = useState<string>()
-  // Each PDF-import request remounts the import view and opens the file picker.
-  const [importSession, setImportSession] = useState(0)
-  const [shouldOpenFilePicker, setShouldOpenFilePicker] = useState(false)
-  const pantryGroups = groupPantriesByRecency(summaries)
-  const showGroupLabels = pantryGroups.length > 1
+
+  const pantryMatch = matchPath('/pantries/:pantryId', location.pathname) ?? matchPath('/pantries/:pantryId/study', location.pathname)
+  const routePantryId = pantryMatch?.params.pantryId
+  const activePantryId = routePantryId === 'import' || routePantryId === 'manual' ? undefined : routePantryId
+  const isStudying = matchPath('/pantries/:pantryId/study', location.pathname) !== null
 
   const refreshPantries = async () => {
     setSummaries(await pantryRepository.listPantries())
@@ -66,13 +77,15 @@ function App() {
     void refreshPantries()
   }, [])
 
-  const openPantry = async (id: string) => {
-    const pantry = await pantryRepository.getPantry(id)
-    setActivePantry(pantry)
-    setShowManualStarter(false)
+  // An error belongs to the screen that raised it.
+  useEffect(() => {
     setError(undefined)
-    setView('workspace')
-  }
+  }, [location.pathname])
+
+  const goHome = () => navigate('/pantries')
+  const startPdfImport = () => navigate(IMPORT_PATH, { state: { openFilePicker: true } satisfies ImportRouteState })
+  const startManualAuthoring = () => navigate(MANUAL_PATH)
+  const openPantry = (id: string) => navigate(pantryPath(id))
 
   const createManualPantry = async (title: string) => {
     const pantry = await pantryRepository.createPantry({
@@ -81,53 +94,7 @@ function App() {
       sourcePages: [],
     })
     await refreshPantries()
-    setActivePantry(pantry)
-    setShowManualStarter(false)
-    setView('workspace')
-  }
-
-  const handlePantryChange = async () => {
-    if (!activePantry) {
-      return
-    }
-
-    const refreshed = await pantryRepository.getPantry(activePantry.id)
-    setActivePantry(refreshed)
-    await refreshPantries()
-  }
-
-  const goHome = () => {
-    setActivePantry(undefined)
-    setShowManualStarter(false)
-    setError(undefined)
-    setView('home')
-  }
-
-  const startPdfImport = () => {
-    setActivePantry(undefined)
-    setShowManualStarter(false)
-    setError(undefined)
-    setImportSession((current) => current + 1)
-    setShouldOpenFilePicker(true)
-    setView('import')
-  }
-
-  const startManualAuthoring = () => {
-    setActivePantry(undefined)
-    setShowManualStarter(true)
-    setShouldOpenFilePicker(false)
-    setError(undefined)
-    setView('import')
-  }
-
-  const deleteActivePantry = async () => {
-    if (!activePantry) {
-      return
-    }
-
-    await pantryRepository.deletePantry(activePantry.id)
-    await refreshPantries()
-    goHome()
+    openPantry(pantry.id)
   }
 
   if (onboarding.shouldShowOnboarding) {
@@ -143,97 +110,146 @@ function App() {
     )
   }
 
+  const myPantries = (
+    <HomeDashboard
+      mode={onboarding.state.mode}
+      onCreateFromPdf={startPdfImport}
+      onCreateManually={startManualAuthoring}
+      onOpenPantry={openPantry}
+      onReplayIntro={onboarding.restartOnboarding}
+      pantries={summaries}
+    />
+  )
+  const importState = location.state as ImportRouteState | null
+
   return (
-    <div className={activePantry && view === 'study' ? 'app-shell is-studying' : 'app-shell'}>
-      <aside className="sidebar" aria-label="Pantries">
-        <button className="brand" onClick={goHome} type="button">
-          <img alt="" className="brand-mark" height="40" src={rokkiMark} width="40" />
-          <span>traccoon <b>education</b></span>
-        </button>
-
-        <button className="new-source-button" onClick={startPdfImport} type="button">
-          <Icon icon={Add01Icon} /> New source
-        </button>
-
-        <div className="sidebar-label">Your pantries</div>
-        <nav className="pantry-nav">
-          {summaries.length === 0 ? (
-            <p className="empty-nav">Your study sets stay on this device.</p>
-          ) : (
-            pantryGroups.map((group) => (
-              <div
-                aria-labelledby={showGroupLabels ? `pantry-group-${group.id}` : undefined}
-                className="pantry-group"
-                key={group.id}
-                role={showGroupLabels ? 'group' : undefined}
-              >
-                {showGroupLabels ? <p className="pantry-group-label" id={`pantry-group-${group.id}`}>{group.label}</p> : null}
-                {group.pantries.map((pantry) => (
-                  <button
-                    className={activePantry?.id === pantry.id ? 'pantry-link active' : 'pantry-link'}
-                    key={pantry.id}
-                    onClick={() => void openPantry(pantry.id)}
-                    type="button"
-                  >
-                    <span className={isManualPantry(pantry) ? 'pantry-link-icon manual' : 'pantry-link-icon'}>
-                      <Icon icon={isManualPantry(pantry) ? PencilEdit02Icon : File01Icon} />
-                    </span>
-                    <span>{pantry.title}</span>
-                    <small>{pantry.cardCount} {pantry.cardCount === 1 ? 'card' : 'cards'}</small>
-                  </button>
-                ))}
-              </div>
-            ))
-          )}
-        </nav>
-
-        <div className="sidebar-footer">
-          <Icon icon={SquareLock02Icon} size={16} />
-          Local Private: no study content sent for generation
-        </div>
-      </aside>
+    <div className={isStudying ? 'app-shell is-studying' : 'app-shell'}>
+      <Sidebar activePantryId={activePantryId} onNewSource={startPdfImport} summaries={summaries} />
 
       <main className="main-content">
         {error ? <div className="global-error" role="alert"><Icon icon={AlertCircleIcon} /><span>{error}</span></div> : null}
-        {activePantry ? (
-          <PantryWorkspace
-            key={activePantry.id}
-            onDelete={() => void deleteActivePantry()}
-            onPantryChange={() => void handlePantryChange()}
-            onStudy={() => setView((current) => current === 'study' ? 'workspace' : 'study')}
-            pantry={activePantry}
-            showStudy={view === 'study'}
+        <Routes>
+          <Route element={myPantries} path="/" />
+          <Route element={myPantries} path="/pantries" />
+          <Route
+            element={(
+              <ImportWorkspace
+                // A new "New source" click is a new history entry, so it remounts the view.
+                key={location.key}
+                onError={setError}
+                onPantryCreated={async (id) => {
+                  await refreshPantries()
+                  openPantry(id)
+                }}
+                onStartManual={startManualAuthoring}
+                openFilePickerOnMount={importState?.openFilePicker === true}
+              />
+            )}
+            path={IMPORT_PATH}
           />
-        ) : view === 'import' ? (
-          showManualStarter ? (
-            <ManualPantryStarter
-              onCancel={goHome}
-              onCreate={(title) => void createManualPantry(title)}
-            />
-          ) : (
-            <ImportWorkspace
-              key={importSession}
-              onError={setError}
-              openFilePickerOnMount={shouldOpenFilePicker}
-              onPantryCreated={async (id) => {
-                await refreshPantries()
-                await openPantry(id)
-              }}
-              onStartManual={() => setShowManualStarter(true)}
-            />
-          )
-        ) : (
-          <HomeDashboard
-            mode={onboarding.state.mode}
-            onCreateFromPdf={startPdfImport}
-            onCreateManually={startManualAuthoring}
-            onOpenPantry={(id) => void openPantry(id)}
-            onReplayIntro={onboarding.restartOnboarding}
-            pantries={summaries}
+          <Route
+            element={<ManualPantryStarter onCancel={goHome} onCreate={(title) => void createManualPantry(title)} />}
+            path={MANUAL_PATH}
           />
-        )}
+          <Route element={<PantryRoute onPantriesChange={refreshPantries} />} path="/pantries/:pantryId" />
+          <Route element={<PantryStudyRoute />} path="/pantries/:pantryId/study" />
+          <Route element={<Navigate replace to="/pantries" />} path="*" />
+        </Routes>
       </main>
     </div>
+  )
+}
+
+/**
+ * Loads one pantry for the current route. `undefined` while loading, `null`
+ * when the id does not exist on this device.
+ */
+function usePantry(pantryId: string) {
+  const [pantry, setPantry] = useState<Pantry | null>()
+
+  const reload = async () => {
+    setPantry((await pantryRepository.getPantry(pantryId)) ?? null)
+  }
+
+  useEffect(() => {
+    let isActive = true
+    setPantry(undefined)
+    pantryRepository.getPantry(pantryId).then((loaded) => {
+      if (isActive) setPantry(loaded ?? null)
+    })
+    return () => {
+      isActive = false
+    }
+  }, [pantryId])
+
+  return { pantry, reload }
+}
+
+function PantryNotFound() {
+  return (
+    <section className="workspace">
+      <h1>Pantry not found</h1>
+      <p className="hero-copy">This pantry is not stored in this browser. It may have been deleted.</p>
+      <Link className="secondary-button" to="/pantries">Back to My Pantries</Link>
+    </section>
+  )
+}
+
+function PantryRoute({ onPantriesChange }: { onPantriesChange: () => Promise<void> }) {
+  const { pantryId = '' } = useParams()
+  const navigate = useNavigate()
+  const { pantry, reload } = usePantry(pantryId)
+
+  if (pantry === undefined) return null
+  if (pantry === null) return <PantryNotFound />
+
+  return (
+    <PantryWorkspace
+      key={pantry.id}
+      onDelete={async () => {
+        await pantryRepository.deletePantry(pantry.id)
+        await onPantriesChange()
+        navigate('/pantries')
+      }}
+      onPantryChange={async () => {
+        await reload()
+        await onPantriesChange()
+      }}
+      onStudy={() => navigate(pantryStudyPath(pantry.id))}
+      pantry={pantry}
+    />
+  )
+}
+
+function PantryStudyRoute() {
+  const { pantryId = '' } = useParams()
+  const navigate = useNavigate()
+  const { pantry } = usePantry(pantryId)
+
+  if (pantry === undefined) return null
+  if (pantry === null) return <PantryNotFound />
+
+  return (
+    <section className="workspace">
+      <header className="workspace-header studying">
+        <div className="eyebrow"><span /> STUDYING</div>
+        <h1>{pantry.title}</h1>
+      </header>
+      <StudySession
+        cards={pantry.cards}
+        sourceName={pantry.sourceName}
+        sourcePages={pantry.sourcePages}
+        onAttempt={(selectedIndex, isCorrect, cardId) =>
+          pantryRepository.saveAttempt({
+            pantryId: pantry.id,
+            cardId,
+            selectedIndex,
+            isCorrect,
+          })
+        }
+        onBack={() => navigate(pantryPath(pantry.id))}
+      />
+    </section>
   )
 }
 
@@ -270,7 +286,10 @@ function ImportWorkspace({
   // development double-mount from opening a second picker.
   const hasOpenedFilePicker = useRef(false)
   useLayoutEffect(() => {
-    if (openFilePickerOnMount && !hasOpenedFilePicker.current) {
+    // A reload restores the history state but has no click behind it; skip
+    // the picker then instead of triggering a blocked-dialog warning.
+    const hasUserActivation = navigator.userActivation?.isActive ?? true
+    if (openFilePickerOnMount && hasUserActivation && !hasOpenedFilePicker.current) {
       hasOpenedFilePicker.current = true
       fileInputRef.current?.click()
     }
@@ -422,13 +441,11 @@ function PantryWorkspace({
   onPantryChange,
   onStudy,
   pantry,
-  showStudy,
 }: {
-  onDelete: () => void
-  onPantryChange: () => void
+  onDelete: () => Promise<void>
+  onPantryChange: () => Promise<void>
   onStudy: () => void
   pantry: Pantry
-  showStudy: boolean
 }) {
   const [selectedPages, setSelectedPages] = useState<number[]>(() => pantry.sourcePages.slice(0, MAX_SELECTED_PAGES).map((page) => page.pageNumber))
   const [candidates, setCandidates] = useState<GeneratedCard[]>([])
@@ -439,11 +456,8 @@ function PantryWorkspace({
   const [attemptSummary, setAttemptSummary] = useState<AttemptSummary>()
   const [attemptLoadError, setAttemptLoadError] = useState(false)
 
-  // Reload recorded answers when the pantry opens and when leaving study.
+  // Studying is its own route, so returning from it remounts and reloads answers.
   useEffect(() => {
-    if (showStudy) {
-      return
-    }
     pantryRepository
       .listAttempts(pantry.id)
       .then((attempts) => {
@@ -451,7 +465,7 @@ function PantryWorkspace({
         setAttemptLoadError(false)
       })
       .catch(() => setAttemptLoadError(true))
-  }, [pantry.id, showStudy])
+  }, [pantry.id])
   const [generationController, setGenerationController] = useState<AbortController>()
 
   const generate = async () => {
@@ -514,12 +528,6 @@ function PantryWorkspace({
 
   return (
     <section className="workspace">
-      {showStudy ? (
-        <header className="workspace-header studying">
-          <div className="eyebrow"><span /> STUDYING</div>
-          <h1>{pantry.title}</h1>
-        </header>
-      ) : (
       <header className="workspace-header">
         <div>
           <div className="eyebrow"><span /> LOCAL PANTRY</div>
@@ -542,37 +550,18 @@ function PantryWorkspace({
           <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button"><Icon icon={Delete02Icon} />Delete pantry</button>
         </div>
       </header>
-      )}
 
-      {confirmingDeletion && !showStudy ? (
+      {confirmingDeletion ? (
         <div className="delete-confirmation" role="alert">
           <span>Delete this pantry, its source text, cards, and answer attempts from this browser?</span>
           <div>
             <button className="secondary-button" onClick={() => setConfirmingDeletion(false)} type="button">Keep pantry</button>
-            <button className="danger-button" onClick={onDelete} type="button">Confirm local deletion</button>
+            <button className="danger-button" onClick={() => void onDelete()} type="button">Confirm local deletion</button>
           </div>
         </div>
       ) : null}
 
-      {showStudy ? (
-        <StudySession
-          cards={pantry.cards}
-          sourceName={pantry.sourceName}
-          sourcePages={pantry.sourcePages}
-          onAttempt={(selectedIndex, isCorrect, cardId) =>
-            pantryRepository.saveAttempt({
-              pantryId: pantry.id,
-              cardId,
-              selectedIndex,
-              isCorrect,
-            })
-          }
-          onBack={onStudy}
-        />
-      ) : null}
-
-      {!showStudy ? (
-        <>
+      <>
           {hasPdfSource ? (
           <>
           <section className="generation-panel">
@@ -651,8 +640,7 @@ function PantryWorkspace({
               </div>
             )}
           </section>
-        </>
-      ) : null}
+      </>
     </section>
   )
 }

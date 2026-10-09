@@ -9,6 +9,8 @@ const completeOnboarding = () => writeOnboardingState({ completed: true, mode: '
 describe('Traccoon Education', () => {
   beforeEach(() => {
     localStorage.clear()
+    // Real URLs persist across tests in one file; start each test at the root.
+    window.history.replaceState(null, '', '/')
   })
 
   afterEach(() => {

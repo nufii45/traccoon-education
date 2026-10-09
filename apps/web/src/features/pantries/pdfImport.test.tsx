@@ -16,6 +16,7 @@ beforeAll(() => {
 beforeEach(() => {
   vi.mocked(loadPdfSource).mockReset()
   writeOnboardingState({ completed: true, mode: 'local-private' })
+  window.history.replaceState(null, '', '/')
 })
 
 const makeSource = (): PdfSource => ({
