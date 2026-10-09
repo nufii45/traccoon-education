@@ -9,14 +9,14 @@ beforeAll(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
 
-const makeSource = () => {
+const makeSource = (pageCount = 4) => {
   const renderPage = vi.fn(() => ({ promise: Promise.resolve(), cancel: vi.fn() }))
   const getPage = vi.fn().mockResolvedValue({
     getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }),
     render: renderPage,
   })
   const source: PdfSource = {
-    pages: Array.from({ length: 4 }, (_, index) => ({ id: `page-${index + 1}`, pageNumber: index + 1, text: `Text for page ${index + 1}` })),
+    pages: Array.from({ length: pageCount }, (_, index) => ({ id: `page-${index + 1}`, pageNumber: index + 1, text: `Text for page ${index + 1}` })),
     document: { getPage } as unknown as PDFDocumentProxy,
     destroy: vi.fn().mockResolvedValue(undefined),
   }
@@ -113,5 +113,54 @@ describe('PDF page picker', () => {
     nextPage()
     expect(await screen.findByRole('img', { name: 'Preview of page 2' })).toBeVisible()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows four pages per view in grid mode, steps four at a time, and keeps the single-page position', async () => {
+    const { source, getPage } = makeSource(10)
+    const onSave = vi.fn()
+    render(<PdfPagePicker isOpen source={source} sourceName="lecture.pdf" selectedPages={[]} onClose={vi.fn()} onSave={onSave} />)
+    nextPage()
+    nextPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Grid of 4' }))
+    expect(screen.getByRole('button', { name: 'Grid of 4' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Pages 1–4 of 10')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Previous pages' })).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /^Select page \d+$/ }).map((button) => button.getAttribute('aria-label'))).toEqual(['Select page 1', 'Select page 2', 'Select page 3', 'Select page 4'])
+    await screen.findByRole('img', { name: 'Preview of page 4' })
+    expect(getPage).toHaveBeenCalledTimes(7)
+    const canvas = await screen.findByRole('img', { name: 'Preview of page 3' })
+    expect(canvas).toHaveAttribute('width', '675')
+    fireEvent.click(screen.getByRole('button', { name: 'Next pages' }))
+    expect(screen.getByText('Pages 5–8 of 10')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Next pages' }))
+    expect(screen.getByText('Pages 9–10 of 10')).toBeVisible()
+    expect(screen.getAllByRole('button', { name: /^Select page \d+$/ })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Next pages' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Single page' }))
+    expect(screen.getByText('Page 9 of 10')).toBeVisible()
+    await screen.findByRole('img', { name: 'Preview of page 9' })
+  })
+
+  it('selects pages directly from the grid with the same three-page limit and shares the draft with single view', async () => {
+    const { source } = makeSource(8)
+    const onSave = vi.fn()
+    render(<PdfPagePicker isOpen source={source} sourceName="lecture.pdf" selectedPages={[2]} onClose={vi.fn()} onSave={onSave} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Grid of 4' }))
+    expect(screen.getByRole('button', { name: 'Page 2 selected' })).toHaveAttribute('aria-pressed', 'true')
+    selectPage(4)
+    fireEvent.click(screen.getByRole('button', { name: 'Next pages' }))
+    selectPage(7)
+    expect(screen.getByRole('button', { name: 'Select page 5' })).toBeDisabled()
+    expect(screen.getByText('3 of 3 selected')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Page 7 selected' }))
+    expect(screen.getByRole('button', { name: 'Select page 5' })).toBeEnabled()
+    selectPage(8)
+    fireEvent.click(screen.getByRole('button', { name: 'Previous pages' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Single page' }))
+    expect(screen.getByText('Page 1 of 8')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Select page 1' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save selection' }))
+    expect(onSave).toHaveBeenCalledWith([2, 4, 8])
+    await screen.findByRole('img', { name: 'Preview of page 1' })
   })
 })
