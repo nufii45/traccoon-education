@@ -1,7 +1,7 @@
 # Traccoon Education foundation design
 
-**Status:** approved architecture, pending implementation-plan review  
-**Date:** 2026-10-09  
+**Status:** approved architecture, revised foundation slice pending implementation-plan review
+**Date:** 2026-10-09
 **Product source:** `docs/Traccoon_Education_PRD_001_v1.0.md`
 
 ## Purpose
@@ -15,10 +15,11 @@ The product is web-first. The client uses Vite, React, and TypeScript. Expo and 
 - Support responsive widths from 360 px through desktop. Validate the core flow at 390 px and 1440 px.
 - Use TypeScript in the client, API, contracts, and study domain. Replace the generated Python API starter rather than retain a mixed-language server.
 - Persist prepared material and queued mutations in IndexedDB so a learner can study and edit offline after preparation.
-- Keep the server authoritative for account-owned content and reconciled progress. The client may show provisional progress while an event is waiting to sync.
+- Keep the server authoritative for account-owned content and reconciled attempts. The client may show a provisional attempt while an event is waiting to sync.
 - Support text-based PDFs only. When the server finds no meaningful text layer, it declines generation and offers manual card authoring.
 - Include no payment, entitlement, advertising, subscription, native-app, social, classroom, or OCR feature.
 - Never put AI-provider credentials in the browser. Only selected page text may reach the server-side card generator.
+- Start with the PDF-to-card study basics. Ingredient, snack, feeding, Satisfaction, and Hungry Rokki surfaces are present as non-interactive placeholders in the first slice.
 
 ## Repository structure
 
@@ -36,7 +37,7 @@ traccoon-educ-web/
 │   └── api/                     # TypeScript HTTP API and server adapters
 ├── packages/
 │   ├── contracts/                # Zod schemas, API payloads, shared identifiers
-│   └── study-engine/             # Pure card, snack, and progress rules
+│   └── study-engine/             # Pure card and attempt rules; companion economy later
 ├── docs/
 │   ├── Traccoon_Education_PRD_001_v1.0.md
 │   └── superpowers/specs/
@@ -58,11 +59,11 @@ The existing PRD remains untouched. The existing `docs/` directory is preserved;
 | Route | Responsibility |
 |---|---|
 | `/sign-in` | Register, sign in, sign out, and explain the local-first study model. |
-| `/` | Dashboard: pantry list, Rokki summary, Satisfaction, streak, scraps, and sync state. |
+| `/` | Dashboard: pantry list, Rokki summary, static companion-progress placeholders, and sync state. |
 | `/pantries/new` | Upload a PDF or begin manual authoring. |
 | `/pantries/:pantryId/pages` | Show processing state, text availability, and an empty-by-default page selection. |
 | `/pantries/:pantryId/review` | Inspect, edit, reorder, remove, or manually add cards before study. |
-| `/pantries/:pantryId/study` | Run one-card-at-a-time study, source reference, ingredient progress, snacks, and feed-or-hold choices. |
+| `/pantries/:pantryId/study` | Run one-card-at-a-time study, immediate feedback, source reference, and a static ingredient-progress placeholder. |
 | `/settings/rokki` | Select from the starter cosmetic options. |
 
 The route shell is responsive rather than split into mobile and desktop products. Small screens use a compact top bar and single-column task flow; larger screens add persistent navigation and give page selection and card editing more space.
@@ -84,24 +85,24 @@ The API keeps its provider configuration in environment variables. A missing AI 
 
 ### Shared domain
 
-`packages/contracts` owns JSON-safe entities and request/response schemas. `packages/study-engine` owns pure functions and has no browser or server imports. Both web and API call the same domain functions for provisional and canonical progress respectively.
+`packages/contracts` owns JSON-safe entities and request/response schemas. `packages/study-engine` owns pure card-order and attempt functions with no browser or server imports. Both web and API use the same contracts for provisional and canonical attempts.
 
 Key entities are:
 
 - `Pantry`: learner-owned collection, source metadata, selected page numbers, card order, and timestamps.
 - `Card`: question, exactly four options, correct index, optional source page and quote, position, edit metadata, manual flag, and soft-delete metadata.
 - `Attempt`: append-only event with a client-generated stable ID, card ID, session ID, sequence, answer, correctness, and timestamp.
-- `CardProgress`: derived state containing times seen, times wrong, consecutive correct answers, last result, and last-seen time.
-- `Snack`: a persisted five-ingredient group with good-ingredient count, tier, formed timestamp, and optional fed timestamp.
 - `OutboxEntry`: local-only queued mutation with event ID, payload, status, attempts, and retry metadata.
+
+The initial contracts omit derived card mastery, ingredients, snacks, feeding, Satisfaction, and Hungry Rokki state. Their names and intended rules stay in the PRD, while the first slice uses presentation-only placeholders that cannot mutate learner progress.
 
 ## Offline and synchronization model
 
-The browser keeps an IndexedDB database with `pantries`, `cards`, `attempts`, `cardProgress`, `snacks`, `outbox`, and `syncMeta` stores. Every local write is transactional: update local state first, add an outbox entry with a stable ID, then notify the sync worker.
+The browser keeps an IndexedDB database with `pantries`, `cards`, `attempts`, `outbox`, and `syncMeta` stores. Every local write is transactional: update local state first, add an outbox entry with a stable ID, then notify the sync worker.
 
-The sync worker runs at startup, after a local mutation, on the browser `online` event, and when the learner requests retry. It sends pending entries in order. The API de-duplicates by event ID and returns canonical derived progress. The client replaces provisional values only when the server result differs, then shows a concise explanation without blocking study.
+The sync worker runs at startup, after a local mutation, on the browser `online` event, and when the learner requests retry. It sends pending entries in order. The API de-duplicates by event ID and returns canonical attempt state. The client replaces a provisional attempt only when the server result differs, then shows a concise explanation without blocking study.
 
-Prepared pantries, edits, study attempts, formed snacks, and feed actions remain available while offline. Authentication, upload, page extraction, and generation remain online-only actions. Offline status is visible but never disables access to prepared study material.
+Prepared pantries, edits, and study attempts remain available while offline. Authentication, upload, page extraction, and generation remain online-only actions. Offline status is visible but never disables access to prepared study material.
 
 ## PDF preparation and card generation
 
@@ -114,17 +115,15 @@ Prepared pantries, edits, study attempts, formed snacks, and feed actions remain
 
 If extraction finds no usable text, the API labels the document as scanned or image-only, declines generation, and links to manual authoring. It does not attempt OCR.
 
-## Study, companion, and progress rules
+## Study basics and companion placeholders
 
-The study route presents one card at a time, immediate answer feedback, a source-page control, and a five-ingredient progress indicator.
+The first study route presents one card at a time, immediate answer feedback, and a source-page control. It records an append-only attempt locally and queues it for server reconciliation.
 
-- Every answer creates one ingredient. Correct answers are good ingredients; incorrect answers are scraps.
-- At five ingredients, the study engine persists a snack: five good ingredients make a proper snack; three or four make a humble snack; zero to two make a scrap snack.
-- A formed snack persists until the learner chooses to feed Rokki. Feeding raises the day’s Satisfaction by the snack tier and is never automatic.
-- A scrap backlog can offer a scrap-focused session. It never locks other study actions and never results from time away.
-- The card selection score is the PRD value function: wrong answers and a most-recent wrong answer increase priority; consecutive right answers reduce it; four consecutive right answers reset it to the base value.
+The study and dashboard screens include an ingredient tray, snack area, Satisfaction value, scrap summary, and Rokki status as deliberately non-interactive placeholders. They communicate that the companion system is planned but do not award ingredients, form snacks, enable feeding, calculate Satisfaction, or offer scrap-focused sessions.
 
-The server recomputes progress from append-only attempts and reconciled snack events. The client can use the same pure study-engine functions for instantaneous local feedback.
+Card selection uses a simple deterministic order in the first slice. The PRD priority function, snack tiers, feeding rules, Satisfaction calculation, and Hungry Rokki trigger are deferred together so the companion economy is introduced as one coherent feature.
+
+The server accepts and de-duplicates study attempts. The client uses the same shared attempt schema for local persistence and sync. Derived card mastery and companion progress remain deferred.
 
 ## Authentication, data, and security
 
@@ -132,7 +131,7 @@ The first implementation uses account registration and sign-in with email, passw
 
 Account ownership is verified at every pantry, source-file, card, and event operation. Server routes validate schema, file type, size, account scope, and card constraints. Cookie and CSRF configuration are set by environment for local and deployed origins. PDF files and page-preview URLs are never public by default.
 
-PostgreSQL stores account-owned content, source metadata, append-only events, idempotency keys, and canonical derived progress. Object storage stores original PDFs and preview images. A local compose environment provides PostgreSQL and S3-compatible storage without committing secrets.
+PostgreSQL stores account-owned content, source metadata, append-only events, and idempotency keys. Derived mastery and companion progress are added with the deferred companion economy. Object storage stores original PDFs and preview images. A local compose environment provides PostgreSQL and S3-compatible storage without committing secrets.
 
 ## Traccoon design system and Rokki assets
 
@@ -150,7 +149,7 @@ The original Bryl layout principles remain useful: readable hierarchy, compact m
 
 Text, focus, and interactive states use contrast-safe pairings. Blush and peach do not carry meaning alone: copy, iconography, or shape explains outcomes. The app includes visible focus treatment, semantic landmarks, keyboard escape routes, and a complete reduced-motion presentation.
 
-Rokki's supplied PNG layers are copied into `apps/web/public/rokki/`, preserving their named folders. The web client begins with a deterministic compositing component and starter cosmetic selection. It does not claim to provide Rive animation; the supplied source contains transparent raster layers rather than a completed animation rig.
+Rokki's supplied PNG layers are copied into `apps/web/public/rokki/`, preserving their named folders. The initial client uses a static, deterministic composite and starter cosmetic selection. Companion-progress controls are disabled placeholders. The app does not claim to provide Rive animation; the supplied source contains transparent raster layers rather than a completed animation rig.
 
 ## Project-local skill integration
 
@@ -172,25 +171,35 @@ The Traccoon derivative carries Bryl's required license and source attribution. 
 - Card-generation failures preserve the selected pages and link back to retry or manual authoring.
 - Card-validation failures never save a partial malformed card. The review UI identifies the field to repair.
 - Sync failures retain ordered outbox entries and show pending or retry status without disabling a prepared pantry.
-- If canonical progress differs after sync, the UI states that the server reconciled a previous offline action and displays the corrected value.
+- Attempt reconciliation never changes a placeholder companion value in the first slice.
 
 ## Verification strategy
 
 | Layer | Verification |
 |---|---|
-| Contracts and study engine | Unit tests for card validation, page selection, priority calculation, snack tiers, Satisfaction, idempotency, and reconciliation. |
+| Contracts and study engine | Unit tests for card validation, page selection, deterministic card order, attempt idempotency, and reconciliation. |
 | Web data layer | Fake IndexedDB tests for transactional writes, offline reads, ordered outbox retries, and canonical reconciliation. |
 | API | Route integration tests for account isolation, PDF rejection, text-page availability, generation validation, manual cards, and duplicate-event handling. |
-| UI | React component tests for keyboard behavior, error states, source references, non-blocking companion states, and responsive-safe text. |
-| End to end | Browser tests at 390 px and 1440 px for PDF-to-first-answer, manual authoring, offline study, and reconnect-without-double-counting. |
+| UI | React component tests for keyboard behavior, error states, source references, disabled companion placeholders, and responsive-safe text. |
+| End to end | Browser tests at 390 px and 1440 px for PDF-to-first-answer, manual authoring, offline study, and reconnect-without-double-counting attempts. |
 
 The repository must pass type-checking, linting, unit and integration tests, production builds, and the two end-to-end viewport scenarios before the MVP is called complete.
 
+## Current foundation-slice acceptance criteria
+
+1. A learner can create an account, sign in, and open a responsive dashboard at 390 px and 1440 px.
+2. A learner can create a pantry manually, add and edit a valid four-option card, and begin a study session.
+3. A text-based PDF can be uploaded, inspected page by page with an empty default selection, and converted into reviewable cards through the configured development generator.
+4. A study answer is stored locally while offline, appears as pending sync, and reaches the API exactly once when connectivity returns.
+5. A scanned or image-only PDF declines generation and offers manual authoring.
+6. The ingredient tray, snack area, feeding action, Satisfaction, scraps, and Hungry Rokki are labelled as forthcoming and cannot change state or prevent studying.
+
 ## Delivery sequence
 
-1. Create the TypeScript workspace, local development services, shared contracts, study engine, root quality scripts, and project-local skills.
+1. Create the TypeScript workspace, local development services, shared contracts, root quality scripts, and project-local skills.
 2. Replace the Vite starter with the accessible application shell, Traccoon design tokens, Rokki assets, routing, and local storage layer.
 3. Build authentication, API persistence, source storage, PDF extraction, page selection, and manual authoring.
-4. Add generated-card review with server-side generation adapters and source references.
-5. Build offline study, append-only event sync, snack feeding, Satisfaction, scrap-focused invitations, and Rokki cosmetics.
-6. Run responsive, offline, account-isolation, idempotency, and accessibility verification against the PRD acceptance criteria.
+4. Add generated-card review with server-side generation adapters, source references, and a basic study session that records attempts.
+5. Add IndexedDB persistence, attempt sync, disabled companion placeholders, and the responsive dashboard.
+6. Build the companion economy later: ingredient awards, snack formation, manual feeding, Satisfaction, scrap-focused invitations, and derived card mastery.
+7. Run responsive, offline, account-isolation, idempotency, and accessibility verification against the current slice's acceptance criteria.
