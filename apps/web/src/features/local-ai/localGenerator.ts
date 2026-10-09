@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { validateGeneratedCard } from './cardRules'
-import { MAX_CARDS_PER_RUN } from './policy'
+import { normaliseEvidenceText, validateGeneratedCard } from './cardRules'
+import { MAX_CARDS_PER_RUN, MIN_NORMALIZED_QUOTE_CHARS } from './policy'
 import { anchorQuote } from './quoteAnchor'
 import type {
   CardRejectionReason,
@@ -48,6 +48,87 @@ export const LOCAL_CARD_RESPONSE_SCHEMA: string = JSON.stringify({
   },
   required: ['cards'],
 })
+
+// The local model has a 4,096-token context window shared by the prompt and
+// its reply, and web-llm rejects any prompt that does not fit. Three dense
+// pages, or one page without sentence punctuation (which chunks as a single
+// block), can overflow it. These caps keep Latin-script text inside the window
+// and leave room for the JSON reply.
+export const MAX_PROMPT_SOURCE_CHARACTERS = 4_500
+export const MAX_PROMPT_CHUNK_CHARACTERS = 1_200
+
+const trimToBoundary = (text: string, limit: number): string => {
+  if (text.length <= limit) {
+    return text
+  }
+
+  const head = text.slice(0, limit)
+  const sentenceEnd = Math.max(head.lastIndexOf('. '), head.lastIndexOf('! '), head.lastIndexOf('? '))
+  if (sentenceEnd >= limit / 2) {
+    return head.slice(0, sentenceEnd + 1)
+  }
+
+  const wordEnd = head.lastIndexOf(' ')
+  return (wordEnd > 0 ? head.slice(0, wordEnd) : head).trimEnd()
+}
+
+// Chooses which chunks the model sees. Only the prompt is shortened: cards are
+// still verified against the full chunks and pages, so a quote copied from the
+// shortened text still anchors to real page text.
+export const selectPromptChunks = (
+  chunks: SourceChunk[],
+  maxCharacters: number = MAX_PROMPT_SOURCE_CHARACTERS,
+): SourceChunk[] => {
+  // A chunk below the evidence minimum can never hold a valid quote, so it
+  // would only cost the model a card slot.
+  const usable = chunks.filter(
+    (chunk) => normaliseEvidenceText(chunk.text).length >= MIN_NORMALIZED_QUOTE_CHARS,
+  )
+  const candidates = (usable.length > 0 ? usable : chunks).map((chunk) =>
+    chunk.text.length > MAX_PROMPT_CHUNK_CHARACTERS
+      ? { ...chunk, text: trimToBoundary(chunk.text, MAX_PROMPT_CHUNK_CHARACTERS) }
+      : chunk,
+  )
+
+  if (candidates.reduce((total, chunk) => total + chunk.text.length, 0) <= maxCharacters) {
+    return candidates
+  }
+
+  // Over budget: deal chunks out one page at a time so every selected page
+  // keeps some evidence in the prompt, then restore reading order.
+  const queues = new Map<number, SourceChunk[]>()
+  for (const chunk of candidates) {
+    const queue = queues.get(chunk.pageNumber)
+    if (queue) {
+      queue.push(chunk)
+    } else {
+      queues.set(chunk.pageNumber, [chunk])
+    }
+  }
+
+  const chosen = new Set<SourceChunk>()
+  let used = 0
+  for (let round = 0; ; round += 1) {
+    let dealt = false
+    for (const queue of queues.values()) {
+      const chunk = queue[round]
+      if (chunk === undefined) {
+        continue
+      }
+      dealt = true
+      if (used + chunk.text.length <= maxCharacters) {
+        chosen.add(chunk)
+        used += chunk.text.length
+      }
+    }
+    if (!dealt) {
+      break
+    }
+  }
+
+  const ordered = candidates.filter((chunk) => chosen.has(chunk))
+  return ordered.length > 0 ? ordered : candidates.slice(0, 1)
+}
 
 export const buildLocalGenerationPrompt = (chunks: SourceChunk[], requestedCount: number): string => {
   const sources = chunks
