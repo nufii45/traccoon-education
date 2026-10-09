@@ -21,6 +21,23 @@ input,
 textarea,
 select { font: inherit; }
 
+/* Inline text links. Styled links (buttons, nav, cards) set a class and opt out. */
+a:not([class]) {
+  border-radius: 2px;
+  color: var(--color-primary-hover);
+  font-weight: var(--font-weight-bold);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  transition: color var(--motion-quick), text-decoration-color var(--motion-quick);
+}
+
+a:not([class]):hover {
+  color: var(--color-neutral);
+  text-decoration-color: var(--color-tertiary);
+}
+
+a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,

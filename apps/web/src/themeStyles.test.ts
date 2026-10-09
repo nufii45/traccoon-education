@@ -20,4 +20,10 @@ describe('global theme styles', () => {
     expect(contrastRatio(themes.colors.muted, themes.colors.secondary)).toBeGreaterThanOrEqual(4.5)
     expect(contrastRatio(themes.colors.muted, themes.colors.surface)).toBeGreaterThanOrEqual(4.5)
   })
+
+  it('keeps inline link text readable on every surface links sit on', () => {
+    for (const background of [themes.colors.secondary, themes.colors.surface, themes.colors.surfaceMuted, themes.colors.warningSurface]) {
+      expect(contrastRatio(themes.colors.primaryHover, background)).toBeGreaterThanOrEqual(4.5)
+    }
+  })
 })
