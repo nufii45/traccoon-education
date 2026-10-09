@@ -11,6 +11,7 @@ import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/polic
 import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
+import { groupPantriesByRecency, isManualPantry } from './features/pantries/pantryGroups'
 import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
 import { PdfPagePicker } from './features/pantries/PdfPagePicker'
 import { ReviewCard } from './features/pantries/ReviewCard'
@@ -27,7 +28,9 @@ import {
   AlertCircleIcon,
   ArrowRight02Icon,
   Delete02Icon,
+  File01Icon,
   FileUploadIcon,
+  PencilEdit02Icon,
   SquareLock02Icon,
 } from '@hugeicons/core-free-icons'
 import rokkiMark from './assets/rokki-educ.webp'
@@ -48,6 +51,8 @@ function App() {
   const [activePantry, setActivePantry] = useState<Pantry>()
   const [showManualStarter, setShowManualStarter] = useState(false)
   const [error, setError] = useState<string>()
+  const pantryGroups = groupPantriesByRecency(summaries)
+  const showGroupLabels = pantryGroups.length > 1
 
   const refreshPantries = async () => {
     setSummaries(await pantryRepository.listPantries())
@@ -148,16 +153,29 @@ function App() {
           {summaries.length === 0 ? (
             <p className="empty-nav">Your study sets stay on this device.</p>
           ) : (
-            summaries.map((pantry) => (
-              <button
-                className={activePantry?.id === pantry.id ? 'pantry-link active' : 'pantry-link'}
-                key={pantry.id}
-                onClick={() => void openPantry(pantry.id)}
-                type="button"
+            pantryGroups.map((group) => (
+              <div
+                aria-labelledby={showGroupLabels ? `pantry-group-${group.id}` : undefined}
+                className="pantry-group"
+                key={group.id}
+                role={showGroupLabels ? 'group' : undefined}
               >
-                <span>{pantry.title}</span>
-                <small>{pantry.cardCount} {pantry.cardCount === 1 ? 'card' : 'cards'}</small>
-              </button>
+                {showGroupLabels ? <p className="pantry-group-label" id={`pantry-group-${group.id}`}>{group.label}</p> : null}
+                {group.pantries.map((pantry) => (
+                  <button
+                    className={activePantry?.id === pantry.id ? 'pantry-link active' : 'pantry-link'}
+                    key={pantry.id}
+                    onClick={() => void openPantry(pantry.id)}
+                    type="button"
+                  >
+                    <span className={isManualPantry(pantry) ? 'pantry-link-icon manual' : 'pantry-link-icon'}>
+                      <Icon icon={isManualPantry(pantry) ? PencilEdit02Icon : File01Icon} />
+                    </span>
+                    <span>{pantry.title}</span>
+                    <small>{pantry.cardCount} {pantry.cardCount === 1 ? 'card' : 'cards'}</small>
+                  </button>
+                ))}
+              </div>
             ))
           )}
         </nav>
