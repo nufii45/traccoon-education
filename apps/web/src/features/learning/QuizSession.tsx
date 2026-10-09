@@ -7,14 +7,16 @@ import { pantryRepository } from '../pantries/repository'
 import { StudySession } from '../study/StudySession'
 import type { IngredientId } from '../treats/catalog'
 import type { EconomyEvent } from '../treats/engine'
+import { IngredientCelebration } from '../treats/IngredientCelebration'
 import { IngredientIcon, IngredientReward } from '../treats/TreatArt'
 import { selectPracticeCards } from './practiceRound'
 import styles from './QuizSession.module.css'
 
 /**
  * One Quiz round for the pantry in the URL. Each answer is saved with its
- * ingredient reward in one local transaction; the feedback shows the reward
- * that was actually stored, so a failed save shows no ingredient.
+ * ingredient reward in one local transaction. A stored ingredient opens the
+ * celebration pop-up; a wrong answer gets a quiet note under the feedback.
+ * Both reflect what was actually saved, so a failed save shows nothing.
  */
 export function QuizSession() {
   const { pantryId = '' } = useParams()
@@ -23,6 +25,7 @@ export function QuizSession() {
   const roundCards = useMemo(() => (pantry ? selectPracticeCards(pantry.cards) : []), [pantry])
   const [reward, setReward] = useState<EconomyEvent | null>(null)
   const [found, setFound] = useState<IngredientId[]>([])
+  const [celebrating, setCelebrating] = useState<IngredientId | null>(null)
   const latestAnswer = useRef(0)
 
   if (pantry === undefined) return null
@@ -48,6 +51,7 @@ export function QuizSession() {
     // A slow save must not show its reward under a later card.
     if (answer === latestAnswer.current) {
       setReward(stored)
+      if (stored.type === 'quiz_correct') setCelebrating(stored.ingredientId)
     }
   }
 
@@ -74,7 +78,7 @@ export function QuizSession() {
       <StudySession
         backLabel="Back to Learning Hub"
         cards={roundCards}
-        feedbackSlot={<IngredientReward event={reward} />}
+        feedbackSlot={reward?.type === 'quiz_incorrect' ? <IngredientReward event={reward} /> : null}
         modeLabel="QUIZ MODE"
         onAttempt={(selectedIndex, _isCorrect, cardId) => recordAnswer(selectedIndex, cardId)}
         onBack={() => navigate(QUIZ_PICKER_PATH)}
@@ -82,6 +86,7 @@ export function QuizSession() {
         sourcePages={pantry.sourcePages}
         summarySlot={summary}
       />
+      <IngredientCelebration ingredientId={celebrating} onClose={() => setCelebrating(null)} />
     </section>
   )
 }

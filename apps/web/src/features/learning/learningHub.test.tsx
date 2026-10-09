@@ -1,9 +1,20 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import App from '../../App'
 import { writeOnboardingState } from '../onboarding/onboardingState'
 import { pantryRepository } from '../pantries/repository'
+import { ingredientById } from '../treats/catalog'
 import { totalIngredients } from '../treats/engine'
+
+// jsdom has no HTMLDialogElement.showModal; stub the open/close behaviour.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute('open')
+  }
+})
 
 const manualCard = (id: string) => ({
   id,
@@ -111,10 +122,20 @@ describe('Learning Hub quiz', () => {
 
     await answer('Right answer')
 
-    expect(await screen.findByText('Ingredient found')).toBeInTheDocument()
-    expect(totalIngredients(await pantryRepository.loadTreatEconomy())).toBe(before + 1)
+    const popup = await screen.findByRole('dialog', { name: /^You found .+!$/ })
+    const economy = await pantryRepository.loadTreatEconomy()
+    expect(totalIngredients(economy)).toBe(before + 1)
     const [attempt] = await pantryRepository.listAttempts(pantry.id)
     expect(attempt).toMatchObject({ isCorrect: true, mode: 'quiz' })
+    const stored = economy.events[`quiz:${attempt.id}`]
+    if (stored.type !== 'quiz_correct') throw new Error('Expected a stored ingredient')
+    const name = ingredientById[stored.ingredientId].name
+    expect(popup).toHaveAccessibleName(`You found ${name}!`)
+    expect(within(popup).getByRole('img', { name })).toBeInTheDocument()
+
+    fireEvent.click(within(popup).getByRole('button', { name: 'Keep going' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('button', { name: /See results/ })).toHaveFocus()
 
     fireEvent.click(screen.getByRole('button', { name: /See results/ }))
     expect(await screen.findByRole('heading', { name: '1 ingredient found' })).toBeInTheDocument()
@@ -130,6 +151,7 @@ describe('Learning Hub quiz', () => {
     await answer('Wrong one')
 
     expect(await screen.findByText(/No ingredient this time/)).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(totalIngredients(await pantryRepository.loadTreatEconomy())).toBe(before)
   })
 })
