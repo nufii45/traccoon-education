@@ -32,14 +32,18 @@ import {
 } from '@hugeicons/core-free-icons'
 import rokkiMark from './assets/rokki-educ.webp'
 import { Icon } from './components/Icon/Icon'
+import { HomeDashboard } from './features/onboarding/HomeDashboard'
+import { OnboardingFlow } from './features/onboarding/OnboardingFlow'
+import { useOnboarding } from './features/onboarding/useOnboarding'
 import './App.css'
 
-type AppView = 'welcome' | 'workspace' | 'study'
+type AppView = 'home' | 'import' | 'workspace' | 'study'
 
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
 
 function App() {
-  const [view, setView] = useState<AppView>('welcome')
+  const onboarding = useOnboarding()
+  const [view, setView] = useState<AppView>('home')
   const [summaries, setSummaries] = useState<PantrySummary[]>([])
   const [activePantry, setActivePantry] = useState<Pantry>()
   const [showManualStarter, setShowManualStarter] = useState(false)
@@ -83,11 +87,25 @@ function App() {
     await refreshPantries()
   }
 
-  const resetToWelcome = () => {
+  const goHome = () => {
     setActivePantry(undefined)
     setShowManualStarter(false)
     setError(undefined)
-    setView('welcome')
+    setView('home')
+  }
+
+  const startPdfImport = () => {
+    setActivePantry(undefined)
+    setShowManualStarter(false)
+    setError(undefined)
+    setView('import')
+  }
+
+  const startManualAuthoring = () => {
+    setActivePantry(undefined)
+    setShowManualStarter(true)
+    setError(undefined)
+    setView('import')
   }
 
   const deleteActivePantry = async () => {
@@ -97,18 +115,31 @@ function App() {
 
     await pantryRepository.deletePantry(activePantry.id)
     await refreshPantries()
-    resetToWelcome()
+    goHome()
+  }
+
+  if (onboarding.shouldShowOnboarding) {
+    return (
+      <OnboardingFlow
+        initialMode={onboarding.state.mode}
+        onComplete={(mode) => {
+          onboarding.completeOnboarding(mode)
+          goHome()
+        }}
+        onModeChange={onboarding.setMode}
+      />
+    )
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Pantries">
-        <button className="brand" onClick={resetToWelcome} type="button">
+        <button className="brand" onClick={goHome} type="button">
           <img alt="" className="brand-mark" height="40" src={rokkiMark} width="40" />
           <span>traccoon <b>education</b></span>
         </button>
 
-        <button className="new-source-button" onClick={resetToWelcome} type="button">
+        <button className="new-source-button" onClick={startPdfImport} type="button">
           <Icon icon={Add01Icon} /> New source
         </button>
 
@@ -139,12 +170,7 @@ function App() {
 
       <main className="main-content">
         {error ? <div className="global-error" role="alert"><Icon icon={AlertCircleIcon} /><span>{error}</span></div> : null}
-        {showManualStarter ? (
-          <ManualPantryStarter
-            onCancel={resetToWelcome}
-            onCreate={(title) => void createManualPantry(title)}
-          />
-        ) : activePantry ? (
+        {activePantry ? (
           <PantryWorkspace
             key={activePantry.id}
             onDelete={() => void deleteActivePantry()}
@@ -153,14 +179,30 @@ function App() {
             pantry={activePantry}
             showStudy={view === 'study'}
           />
+        ) : view === 'import' ? (
+          showManualStarter ? (
+            <ManualPantryStarter
+              onCancel={goHome}
+              onCreate={(title) => void createManualPantry(title)}
+            />
+          ) : (
+            <ImportWorkspace
+              onError={setError}
+              onPantryCreated={async (id) => {
+                await refreshPantries()
+                await openPantry(id)
+              }}
+              onStartManual={() => setShowManualStarter(true)}
+            />
+          )
         ) : (
-          <ImportWorkspace
-            onError={setError}
-            onPantryCreated={async (id) => {
-              await refreshPantries()
-              await openPantry(id)
-            }}
-            onStartManual={() => setShowManualStarter(true)}
+          <HomeDashboard
+            mode={onboarding.state.mode}
+            onCreateFromPdf={startPdfImport}
+            onCreateManually={startManualAuthoring}
+            onOpenPantry={(id) => void openPantry(id)}
+            onReplayIntro={onboarding.restartOnboarding}
+            pantries={summaries}
           />
         )}
       </main>

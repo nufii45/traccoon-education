@@ -21,6 +21,8 @@ const disableWebGpu = async (page: Page): Promise<void> => {
 }
 
 const importPdfAndCreatePantry = async (page: Page, canaries: StudyCanaries): Promise<void> => {
+  await page.getByRole('button', { name: 'Skip intro' }).click()
+  await page.getByRole('button', { name: /Create from a PDF/ }).first().click()
   await page.getByLabel('Choose a PDF').setInputFiles({
     name: PDF_FILE_NAME,
     mimeType: 'application/pdf',
@@ -77,7 +79,7 @@ test('manual authoring, study, reload, and deletion send no study content', asyn
   await expect(page.getByText(/Recorded on this device: 1 of 1 answers correct/)).toBeVisible()
 
   await page.reload()
-  await page.getByRole('button', { name: new RegExp(PANTRY_TITLE) }).click()
+  await page.getByRole('button', { name: new RegExp(PANTRY_TITLE) }).first().click()
   await expect(page.getByText(/Recorded on this device: 1 of 1 answers correct/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Delete pantry' }).click()
@@ -192,6 +194,7 @@ test('the guard flags leaks to blocked and allowlisted origins', async ({ contex
 
 test('the UI shows the Local Private label without an absolute byte claim', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Skip intro' }).click()
   await expect(page.getByText(LOCAL_PRIVATE_LABEL, { exact: true })).toBeVisible()
   await expect(page.getByText(/0 bytes|bytes sent|zero bytes/i)).toHaveCount(0)
 })

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { writeOnboardingState } from '../onboarding/onboardingState'
 import { pantryRepository } from './repository'
 import { loadPdfSource, type PdfSource } from './pdfText'
 
@@ -12,7 +13,10 @@ beforeAll(() => {
   HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 })
 
-beforeEach(() => vi.mocked(loadPdfSource).mockReset())
+beforeEach(() => {
+  vi.mocked(loadPdfSource).mockReset()
+  writeOnboardingState({ completed: true, mode: 'local-private' })
+})
 
 const makeSource = (): PdfSource => ({
   pages: [1, 2, 3, 4].map((pageNumber) => ({ id: `page-${pageNumber}`, pageNumber, text: `Source text on page ${pageNumber}` })),
@@ -29,12 +33,17 @@ const upload = (name = 'lecture.pdf') => {
   fireEvent.change(screen.getByLabelText('Choose a PDF'), { target: { files: [new File(['pdf'], name, { type: 'application/pdf' })] } })
 }
 
+const renderImportWorkspace = () => {
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'New source' }))
+}
+
 describe('PDF import selection', () => {
   it('opens previews after import and creates a pantry using only saved pages', async () => {
     const source = makeSource()
     vi.mocked(loadPdfSource).mockResolvedValue(source)
     const createPantry = vi.spyOn(pantryRepository, 'createPantry')
-    render(<App />)
+    renderImportWorkspace()
     upload()
     await screen.findByRole('dialog', { name: 'Select pages' })
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
@@ -59,7 +68,7 @@ describe('PDF import selection', () => {
   it('clears the previous file and saved selection if its replacement fails', async () => {
     const source = makeSource()
     vi.mocked(loadPdfSource).mockResolvedValueOnce(source).mockRejectedValueOnce(new Error('Invalid PDF'))
-    render(<App />)
+    renderImportWorkspace()
     upload()
     await screen.findByRole('dialog')
     fireEvent.click(screen.getByRole('button', { name: 'Select page 1' }))
@@ -79,6 +88,7 @@ describe('PDF import selection', () => {
       .mockReturnValueOnce(new Promise((resolve) => { finishOld = resolve }))
       .mockResolvedValueOnce(newSource)
     const { unmount } = render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'New source' }))
     upload('old.pdf')
     upload('new.pdf')
     await screen.findByRole('dialog')
