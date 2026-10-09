@@ -1,0 +1,287 @@
+.results {
+  display: grid;
+  gap: var(--space-6);
+  width: min(100%, 760px);
+  margin: 0 auto;
+  color: var(--color-neutral);
+}
+
+.hero {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: radial-gradient(circle at 50% 0%, var(--color-primary-soft), var(--color-surface) 60%);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.rokki {
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  animation: rokkiArrive 500ms ease-out both;
+}
+
+.eyebrow,
+.cardMeta,
+.answer > span {
+  margin: 0;
+  color: var(--color-copy);
+  font: var(--font-weight-bold) var(--text-label) / 1.3 var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0;
+  font: var(--font-weight-extrabold) var(--text-title) / var(--line-height-tight) var(--font-sans);
+}
+
+.encouragement {
+  margin: 0;
+  color: var(--color-primary);
+  font: var(--font-weight-extrabold) var(--text-heading) / var(--line-height-tight) var(--font-sans);
+}
+
+.score {
+  margin: var(--space-1) 0 0;
+  font: var(--font-weight-extrabold) var(--text-lead) / 1.2 var(--font-sans);
+}
+
+.support {
+  margin: 0;
+  color: var(--color-copy);
+  line-height: var(--line-height-relaxed);
+}
+
+.segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  width: min(100%, 400px);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segments li {
+  flex: 1 1 20px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+}
+
+.segmentCorrect {
+  background: var(--color-primary);
+}
+
+.segmentMissed {
+  background: var(--color-border);
+}
+
+.rewards {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-warning-surface);
+}
+
+.rewardHeader,
+.reviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rewardHeader h2,
+.reviewHeader h2 {
+  margin: 0;
+  font: var(--font-weight-extrabold) var(--text-lead) / 1.25 var(--font-sans);
+}
+
+.rewardHeader p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-copy);
+}
+
+.ingredients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ingredient {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 78px;
+  padding: var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  font: var(--font-weight-bold) var(--text-label) / 1.2 var(--font-sans);
+  text-align: center;
+  animation: rewardArrive 350ms ease-out both;
+}
+
+.ingredient:nth-child(2) { animation-delay: 60ms; }
+.ingredient:nth-child(3) { animation-delay: 120ms; }
+.ingredient:nth-child(n + 4) { animation-delay: 180ms; }
+
+.review {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.reviewCount {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+  font: var(--font-weight-bold) var(--text-label) / 1.3 var(--font-sans);
+}
+
+.allCorrect {
+  margin: 0;
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.missedList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missedCard {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.missedCard h3 {
+  margin: 0;
+  font: var(--font-weight-bold) var(--text-lead) / 1.4 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-muted);
+}
+
+.answer strong {
+  font: var(--font-weight-bold) var(--text-body) / 1.4 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+
+.reviewNotice {
+  width: fit-content;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-surface);
+  color: var(--color-primary-hover);
+  font: var(--font-weight-bold) var(--text-label) / 1.3 var(--font-sans);
+}
+
+.caution {
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+}
+
+.quote {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-copy);
+}
+
+.quote summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  width: fit-content;
+  color: var(--color-primary);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+}
+
+.quote blockquote {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--color-primary);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+
+.quote p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-label);
+}
+
+.sourceButton,
+.showMore {
+  justify-self: start;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-6);
+}
+
+.results :is(button, a, summary):focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+@keyframes rokkiArrive {
+  from { opacity: 0; transform: translateY(8px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes rewardArrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+  .results { gap: var(--space-4); }
+  .hero { padding: var(--space-4); }
+  .rokki { width: 88px; height: 88px; }
+  .rewardHeader { align-items: start; flex-direction: column; gap: var(--space-1); }
+  .reviewHeader { align-items: start; }
+  .actions { display: grid; }
+  .actions :is(button) { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rokki,
+  .ingredient { animation: none; }
+}

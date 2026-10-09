@@ -115,7 +115,16 @@ test('Quiz answers, ingredient rewards, and the Treat Shelf send no study conten
   await expect(celebration).toBeVisible()
   await celebration.getByRole('button', { name: 'Keep going' }).click()
   await page.getByRole('button', { name: /See results/ }).click()
-  await page.getByRole('link', { name: 'Open the Treat Shelf' }).click()
+  await expect(page.getByText('1 ingredient collected')).toBeVisible()
+  const savedResultUrl = page.url()
+  await page.reload()
+  expect(page.url()).toBe(savedResultUrl)
+  await expect(page.getByText('1 ingredient collected')).toBeVisible()
+  await page.getByRole('button', { name: 'Study all again' }).click()
+  await page.getByRole('button', { name: canaries.cardOptions[1] }).click()
+  await page.getByRole('button', { name: 'Check answer' }).click()
+  await page.getByRole('button', { name: /See results/ }).click()
+  await page.getByRole('link', { name: 'Visit Treat Shelf' }).click()
   await expect(page.getByRole('heading', { name: 'Make something sweet for Rokki.' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible()
 
@@ -129,13 +138,10 @@ test('local generation without WebGPU shows unsupported state and manual authori
 
   await page.goto('/')
   await importPdfAndCreatePantry(page, canaries)
-  await page.getByRole('button', { name: 'Generate local cards' }).click()
+  await page.getByRole('button', { name: 'Generate my study cards' }).click()
 
   await expect(page.getByText(/WebGPU is unavailable in this browser/)).toBeVisible()
-  // localAiClient.ts reports 'unsupported' and then its catch block overwrites
-  // the badge with 'error' (Member 1's lane). Accept either badge while the
-  // unsupported message is shown.
-  await expect(page.locator('.model-status')).toHaveText(/^(unsupported|error)$/)
+  await expect(page.getByRole('alert')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add manual card' })).toBeVisible()
 
   guard.assertClean('generation without WebGPU')
@@ -150,17 +156,16 @@ test("local generation with the browser's real WebGPU never leaks study content"
 
   await page.goto('/')
   await importPdfAndCreatePantry(page, canaries)
-  await page.getByRole('button', { name: 'Generate local cards' }).click()
+  await page.getByRole('button', { name: 'Generate my study cards' }).click()
 
-  const status = page.locator('.model-status')
-  await expect(status).toHaveText(/^(unsupported|error)$/, { timeout: 60_000 })
+  await expect(page.getByRole('alert')).toBeVisible({ timeout: 60_000 })
   await expect(page.getByRole('button', { name: 'Add manual card' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Generate local cards' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeEnabled()
 
   const modelRequests = guard.modelAssetRequests()
   test.info().annotations.push({
     type: 'webgpu-branch',
-    description: `stage=${await status.textContent()}; model-asset requests=${modelRequests.length} (${[...new Set(modelRequests.map((request) => request.origin))].join(', ')}); not intercepted=${modelRequests.filter((request) => !request.intercepted).length}`,
+    description: `recoverable error; model-asset requests=${modelRequests.length} (${[...new Set(modelRequests.map((request) => request.origin))].join(', ')}); not intercepted=${modelRequests.filter((request) => !request.intercepted).length}`,
   })
 
   guard.assertClean('generation with real WebGPU')
@@ -179,12 +184,12 @@ test('live cached model generation (demo Mac only)', async ({ context, page }) =
 
   await page.goto('/')
   await importPdfAndCreatePantry(page, canaries)
-  await page.getByRole('button', { name: 'Generate local cards' }).click()
-  await expect(page.locator('.model-status')).toHaveText(/^(ready|error)$/, { timeout: 14 * 60_000 })
+  await page.getByRole('button', { name: 'Generate my study cards' }).click()
+  await expect(page.getByRole('alert').or(page.getByText('Your study cards are ready!'))).toBeVisible({ timeout: 14 * 60_000 })
 
   test.info().annotations.push({
     type: 'live-model',
-    description: `stage=${await page.locator('.model-status').textContent()}; model-asset origins=${[...new Set(guard.modelAssetRequests().map((request) => request.origin))].join(', ')}`,
+    description: `generation settled; model-asset origins=${[...new Set(guard.modelAssetRequests().map((request) => request.origin))].join(', ')}`,
   })
   guard.assertClean('live cached model generation')
 })

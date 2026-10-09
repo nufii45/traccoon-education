@@ -138,8 +138,8 @@ describe('Learning Hub quiz', () => {
     expect(screen.getByRole('button', { name: /See results/ })).toHaveFocus()
 
     fireEvent.click(screen.getByRole('button', { name: /See results/ }))
-    expect(await screen.findByRole('heading', { name: '1 ingredient found' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open the Treat Shelf' })).toHaveAttribute('href', '/treats')
+    expect(await screen.findByText('1 ingredient collected')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Visit Treat Shelf' })).toHaveAttribute('href', '/treats')
   })
 
   it('finds no ingredient for a wrong answer', async () => {
@@ -153,5 +153,92 @@ describe('Learning Hub quiz', () => {
     expect(await screen.findByText(/No ingredient this time/)).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(totalIngredients(await pantryRepository.loadTreatEconomy())).toBe(before)
+  })
+
+  it('reopens a completed Quiz from its URL without awarding another ingredient', async () => {
+    const pantry = await createPantry('Saved result', 1)
+    window.history.replaceState(null, '', `/learn/quiz/${pantry.id}`)
+    const view = render(<App />)
+
+    await answer('Right answer')
+    const popup = await screen.findByRole('dialog', { name: /^You found .+!$/ })
+    fireEvent.click(within(popup).getByRole('button', { name: 'Keep going' }))
+    fireEvent.click(await screen.findByRole('button', { name: /See results/ }))
+    expect(await screen.findByRole('heading', { name: /Session complete/i })).toBeInTheDocument()
+
+    const resultId = new URLSearchParams(window.location.search).get('result')
+    expect(resultId).toBeTruthy()
+    const saved = await pantryRepository.loadQuizSession(resultId!)
+    expect(saved?.attempts).toHaveLength(1)
+    expect(saved?.awardedIngredients).toHaveLength(1)
+    const ingredientCount = totalIngredients(await pantryRepository.loadTreatEconomy())
+
+    view.unmount()
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: /Session complete/i })).toBeInTheDocument()
+    expect(totalIngredients(await pantryRepository.loadTreatEconomy())).toBe(ingredientCount)
+    expect((await pantryRepository.listAttempts(pantry.id)).filter((attempt) => attempt.mode === 'quiz')).toHaveLength(1)
+  })
+
+  it('retries only missed cards from the saved round and retains the original result', async () => {
+    const pantry = await createPantry('Retry set', 2)
+    window.history.replaceState(null, '', `/learn/quiz/${pantry.id}`)
+    render(<App />)
+
+    for (let index = 0; index < 2; index += 1) {
+      const question = await screen.findByRole('heading', { name: /^Question Retry set-/ })
+      const isMissed = question.textContent?.includes('Retry set-1') ?? false
+      await answer(isMissed ? 'Wrong one' : 'Right answer')
+      if (!isMissed) {
+        const popup = await screen.findByRole('dialog', { name: /^You found .+!$/ })
+        fireEvent.click(within(popup).getByRole('button', { name: 'Keep going' }))
+      }
+      fireEvent.click(await screen.findByRole('button', { name: /Next card|See results/ }))
+    }
+
+    expect(await screen.findByRole('heading', { name: /Session complete/i })).toBeInTheDocument()
+    const originalId = new URLSearchParams(window.location.search).get('result')
+    expect(originalId).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Practice 1 missed card' }))
+    expect(await screen.findByRole('heading', { name: 'Card 1 of 1' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Question Retry set-1?' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Question Retry set-0?' })).toBeNull()
+    expect((await pantryRepository.loadQuizSession(originalId!))?.attempts).toHaveLength(2)
+  })
+
+  it('studies every original card again without changing the completed attempt', async () => {
+    const pantry = await createPantry('Study all set', 2)
+    window.history.replaceState(null, '', `/learn/quiz/${pantry.id}`)
+    render(<App />)
+
+    for (let index = 0; index < 2; index += 1) {
+      await answer('Wrong one')
+      fireEvent.click(await screen.findByRole('button', { name: /Next card|See results/ }))
+    }
+
+    expect(await screen.findByRole('heading', { name: /Session complete/i })).toBeInTheDocument()
+    const originalId = new URLSearchParams(window.location.search).get('result')
+    expect(originalId).toBeTruthy()
+    const original = await pantryRepository.loadQuizSession(originalId!)
+    expect(original?.cards).toHaveLength(2)
+    expect(original?.attempts).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Study all again' }))
+    expect(await screen.findByRole('heading', { name: 'Card 1 of 2' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: original?.cards[0].question })).toBeInTheDocument()
+    await answer('Wrong one')
+    fireEvent.click(await screen.findByRole('button', { name: 'Next card' }))
+    expect(screen.getByRole('heading', { name: 'Card 2 of 2' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: original?.cards[1].question })).toBeInTheDocument()
+    await answer('Wrong one')
+    fireEvent.click(await screen.findByRole('button', { name: /See results/ }))
+
+    expect(await screen.findByRole('heading', { name: /Session complete/i })).toBeInTheDocument()
+    const retryId = new URLSearchParams(window.location.search).get('result')
+    expect(retryId).toBeTruthy()
+    expect(retryId).not.toBe(originalId)
+    expect((await pantryRepository.loadQuizSession(retryId!))?.attempts.map((attempt) => attempt.sourceSessionId)).toEqual([originalId, originalId])
+    expect((await pantryRepository.loadQuizSession(originalId!))?.attempts.map((attempt) => attempt.id)).toEqual(original?.attempts.map((attempt) => attempt.id))
+    expect((await pantryRepository.listAttempts(pantry.id)).filter((attempt) => attempt.mode === 'quiz')).toHaveLength(4)
   })
 })

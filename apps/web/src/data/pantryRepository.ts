@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
 import type { GeneratedCard, SourcePage } from '../features/local-ai/types'
-import type { TreatId } from '../features/treats/catalog'
+import type { IngredientId, TreatId } from '../features/treats/catalog'
 import {
   awardQuizIngredient,
   craftTreat,
@@ -65,16 +65,39 @@ export interface StudyAttempt {
   createdAt: string
   /** Set for attempts recorded since Quiz shipped; older attempts were Practice. */
   mode?: StudyMode
+  /** A retry graded against this completed session's original card snapshot. */
+  sourceSessionId?: string
 }
 
 export type CreateStudyAttemptInput = Omit<StudyAttempt, 'id' | 'createdAt'>
 
-export type QuizAttemptInput = Pick<CreateStudyAttemptInput, 'pantryId' | 'cardId' | 'selectedIndex'>
+export type QuizAttemptInput = Pick<CreateStudyAttemptInput, 'pantryId' | 'cardId' | 'selectedIndex'> & {
+  /** Stable for one answered card in one round; a replay returns the saved result. */
+  attemptId?: string
+  /** Retry this card as it appeared in a completed Quiz session. */
+  sourceSessionId?: string
+}
 
 /** A Quiz attempt and the ingredient reward event committed with it. */
 export interface QuizAttemptResult {
   attempt: StudyAttempt
   reward: EconomyEvent
+}
+
+interface QuizSessionRecord {
+  id: string
+  pantryId: string
+  cards: StoredCard[]
+  attemptIds: string[]
+  completedAt: string
+}
+
+export type CompleteQuizSessionInput = Pick<QuizSessionRecord, 'id' | 'pantryId' | 'cards' | 'attemptIds'>
+
+/** A finalized Quiz round, with answers and earned rewards in question order. */
+export interface CompletedQuizSession extends Omit<QuizSessionRecord, 'attemptIds'> {
+  attempts: StudyAttempt[]
+  awardedIngredients: IngredientId[]
 }
 
 interface TreatEconomyRecord {
@@ -117,6 +140,7 @@ type TraccoonTables = {
   pantryCards: Table<StoredCard, [string, string]>
   attempts: EntityTable<StudyAttempt, 'id'>
   treatEconomy: EntityTable<TreatEconomyRecord, 'key'>
+  quizSessions: EntityTable<QuizSessionRecord, 'id'>
 }
 
 const now = () => new Date().toISOString()
@@ -203,6 +227,14 @@ export class LocalPantryRepository {
       attempts: 'id, pantryId, cardId, createdAt',
       treatEconomy: 'key',
     })
+    // v5: completed Quiz rounds keep their original card order and attempt IDs.
+    this.db.version(5).stores({
+      pantries: 'id, updatedAt',
+      pantryCards: '[pantryId+id], pantryId, createdAt',
+      attempts: 'id, pantryId, cardId, createdAt',
+      treatEconomy: 'key',
+      quizSessions: 'id, pantryId, completedAt',
+    })
   }
 
   private async requirePantry(pantryId: string): Promise<PantryRecord> {
@@ -244,14 +276,14 @@ export class LocalPantryRepository {
   }
 
   /** Call inside a transaction that includes pantries, pantryCards, and attempts. */
-  private async writeAttempt(input: CreateStudyAttemptInput, requireCard: boolean): Promise<StudyAttempt> {
+  private async writeAttempt(input: CreateStudyAttemptInput, requireCard: boolean, attemptId?: string): Promise<StudyAttempt> {
     await this.requirePantry(input.pantryId)
     if (requireCard) {
       await this.requireCard(input.pantryId, input.cardId)
     }
 
     const attempt: StudyAttempt = {
-      id: createId(),
+      id: attemptId ?? createId(),
       pantryId: input.pantryId,
       cardId: input.cardId,
       selectedIndex: input.selectedIndex,
@@ -261,12 +293,41 @@ export class LocalPantryRepository {
     if (input.mode !== undefined) {
       attempt.mode = input.mode
     }
+    if (input.sourceSessionId !== undefined) {
+      attempt.sourceSessionId = input.sourceSessionId
+    }
     await this.db.attempts.add(attempt)
     return attempt
   }
 
   private async readEconomy(): Promise<TreatEconomy> {
     return (await this.db.treatEconomy.get('current'))?.value ?? initialTreatEconomy()
+  }
+
+  /** Call in a transaction containing attempts and treatEconomy. */
+  private async readCompletedQuizSession(record: QuizSessionRecord): Promise<CompletedQuizSession> {
+    const found = await this.db.attempts.bulkGet(record.attemptIds)
+    if (found.some((attempt) => attempt === undefined)) {
+      throw new Error('A completed Quiz session has a missing attempt.')
+    }
+    const attempts = found as StudyAttempt[]
+    const economy = await this.readEconomy()
+    const awardedIngredients: IngredientId[] = []
+    for (const attempt of attempts) {
+      const reward = economy.events[`quiz:${attempt.id}`]
+      if (!reward || reward.type !== (attempt.isCorrect ? 'quiz_correct' : 'quiz_incorrect')) {
+        throw new Error('A completed Quiz session has a missing or inconsistent reward.')
+      }
+      if (reward.type === 'quiz_correct') awardedIngredients.push(reward.ingredientId)
+    }
+    return {
+      id: record.id,
+      pantryId: record.pantryId,
+      cards: record.cards,
+      attempts,
+      awardedIngredients,
+      completedAt: record.completedAt,
+    }
   }
 
   /** Apply one engine command to the stored economy in its own transaction. */
@@ -363,21 +424,124 @@ export class LocalPantryRepository {
 
   /**
    * Record a Quiz attempt and its ingredient reward in one transaction: a
-   * correct answer adds one random ingredient keyed by the new attempt id, a
-   * wrong one records no ingredient. Correctness comes from the stored card,
-   * not the caller. If either write fails, neither is kept. Throws
+   * correct answer adds one random ingredient keyed by the attempt id, a
+   * wrong one records no ingredient. Correctness comes from the stored card
+   * or a completed source session's card snapshot, not the caller. If either
+   * write fails, neither is kept. A stable attemptId returns the original
+   * result when replayed with the same input. Throws
    * {@link PantryNotFoundError} or {@link CardNotFoundError} like
    * {@link appendAttempt}.
    */
   appendQuizAttempt(input: QuizAttemptInput, random: () => number = Math.random): Promise<QuizAttemptResult> {
-    return this.db.transaction('rw', [this.db.pantries, this.db.pantryCards, this.db.attempts, this.db.treatEconomy], async () => {
+    return this.db.transaction('rw', [this.db.pantries, this.db.pantryCards, this.db.attempts, this.db.treatEconomy, this.db.quizSessions], async () => {
+      if (input.attemptId !== undefined) {
+        const saved = await this.db.attempts.get(input.attemptId)
+        if (saved) {
+          if (
+            saved.mode !== 'quiz'
+            || saved.pantryId !== input.pantryId
+            || saved.cardId !== input.cardId
+            || saved.selectedIndex !== input.selectedIndex
+            || saved.sourceSessionId !== input.sourceSessionId
+          ) {
+            throw new Error('Conflicting replay of a Quiz attempt.')
+          }
+          const reward = (await this.readEconomy()).events[`quiz:${saved.id}`]
+          if (!reward || reward.type !== (saved.isCorrect ? 'quiz_correct' : 'quiz_incorrect')) {
+            throw new Error('Saved Quiz attempt has a missing or inconsistent reward.')
+          }
+          return { attempt: saved, reward }
+        }
+      }
       await this.requirePantry(input.pantryId)
-      const card = await this.requireCard(input.pantryId, input.cardId)
+      let card: StoredCard
+      if (input.sourceSessionId !== undefined) {
+        const source = await this.db.quizSessions.get(input.sourceSessionId)
+        if (!source || source.pantryId !== input.pantryId) {
+          throw new Error('Source Quiz session not found for this pantry.')
+        }
+        const snapshot = source.cards.find((candidate) => candidate.id === input.cardId)
+        if (!snapshot) throw new CardNotFoundError()
+        card = snapshot
+      } else {
+        card = await this.requireCard(input.pantryId, input.cardId)
+      }
       const isCorrect = input.selectedIndex === card.correctIndex
-      const attempt = await this.writeAttempt({ ...input, isCorrect, mode: 'quiz' }, false)
+      const attempt = await this.writeAttempt({
+        pantryId: input.pantryId,
+        cardId: input.cardId,
+        selectedIndex: input.selectedIndex,
+        isCorrect,
+        mode: 'quiz',
+        sourceSessionId: input.sourceSessionId,
+      }, false, input.attemptId)
       const result = awardQuizIngredient(await this.readEconomy(), attempt.id, attempt.isCorrect, random)
       await this.db.treatEconomy.put({ key: 'current', value: result.state })
       return { attempt, reward: result.event }
+    })
+  }
+
+  /**
+   * Finalize a Quiz round using only attempts already saved with their reward
+   * events. Replaying the same session ID returns the original result and
+   * never changes the inventory. Card snapshots preserve the answered version
+   * if a learner edits the pantry later.
+   */
+  completeQuizSession(input: CompleteQuizSessionInput): Promise<CompletedQuizSession> {
+    return this.db.transaction('rw', [this.db.pantries, this.db.attempts, this.db.treatEconomy, this.db.quizSessions], async () => {
+      const existing = await this.db.quizSessions.get(input.id)
+      if (existing) {
+        if (existing.pantryId !== input.pantryId) throw new Error('Quiz session ID belongs to another pantry.')
+        return this.readCompletedQuizSession(existing)
+      }
+      await this.requirePantry(input.pantryId)
+      if (
+        input.cards.length === 0
+        || input.cards.length !== input.attemptIds.length
+        || new Set(input.cards.map((card) => card.id)).size !== input.cards.length
+        || new Set(input.attemptIds).size !== input.attemptIds.length
+      ) {
+        throw new Error('Quiz session must have one distinct saved attempt per card.')
+      }
+      const found = await this.db.attempts.bulkGet(input.attemptIds)
+      const economy = await this.readEconomy()
+      for (const [index, card] of input.cards.entries()) {
+        const attempt = found[index]
+        if (
+          card.pantryId !== input.pantryId
+          || !attempt
+          || attempt.pantryId !== input.pantryId
+          || attempt.cardId !== card.id
+          || attempt.mode !== 'quiz'
+          || !Number.isInteger(attempt.selectedIndex)
+          || attempt.selectedIndex < 0
+          || attempt.selectedIndex >= card.options.length
+          || attempt.isCorrect !== (attempt.selectedIndex === card.correctIndex)
+        ) {
+          throw new Error('Quiz session contains an invalid card or attempt.')
+        }
+        const reward = economy.events[`quiz:${attempt.id}`]
+        if (!reward || reward.type !== (attempt.isCorrect ? 'quiz_correct' : 'quiz_incorrect')) {
+          throw new Error('Quiz session contains an invalid reward event.')
+        }
+      }
+      const record: QuizSessionRecord = {
+        id: input.id,
+        pantryId: input.pantryId,
+        cards: input.cards.map((card) => toStoredCard(input.pantryId, card)),
+        attemptIds: [...input.attemptIds],
+        completedAt: now(),
+      }
+      await this.db.quizSessions.add(record)
+      return this.readCompletedQuizSession(record)
+    })
+  }
+
+  /** Read a completed Quiz round without granting or replaying rewards. */
+  loadQuizSession(id: string): Promise<CompletedQuizSession | undefined> {
+    return this.db.transaction('r', [this.db.quizSessions, this.db.attempts, this.db.treatEconomy], async () => {
+      const record = await this.db.quizSessions.get(id)
+      return record ? this.readCompletedQuizSession(record) : undefined
     })
   }
 
@@ -402,9 +566,10 @@ export class LocalPantryRepository {
    * Deleting a missing pantry is a no-op.
    */
   async deletePantry(pantryId: string): Promise<void> {
-    await this.db.transaction('rw', this.db.pantries, this.db.pantryCards, this.db.attempts, async () => {
+    await this.db.transaction('rw', this.db.pantries, this.db.pantryCards, this.db.attempts, this.db.quizSessions, async () => {
       await this.db.pantryCards.where('pantryId').equals(pantryId).delete()
       await this.db.attempts.where('pantryId').equals(pantryId).delete()
+      await this.db.quizSessions.where('pantryId').equals(pantryId).delete()
       await this.db.pantries.delete(pantryId)
     })
   }

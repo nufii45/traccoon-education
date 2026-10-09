@@ -11,7 +11,7 @@ import {
 } from './pantryRepository'
 import type { GeneratedCard, SourcePage } from '../features/local-ai/types'
 import { INGREDIENTS, TREAT_RECIPES } from '../features/treats/catalog'
-import { totalIngredients } from '../features/treats/engine'
+import { totalIngredients, type TreatEconomy } from '../features/treats/engine'
 
 const databaseNames = new Set<string>()
 const repositories: LocalPantryRepository[] = []
@@ -352,7 +352,7 @@ describe('LocalPantryRepository', () => {
       cards: [legacyCard],
       attempts: [expect.objectContaining({ id: 'legacy-attempt', cardId: sharedCardId })],
     })
-    await expect(readStoreNames(name)).resolves.toEqual(['attempts', 'pantries', 'pantryCards', 'treatEconomy'])
+    await expect(readStoreNames(name)).resolves.toEqual(['attempts', 'pantries', 'pantryCards', 'quizSessions', 'treatEconomy'])
 
     await repository.save({ ...pantryInput('New'), cards: [cardWith({ id: sharedCardId })] })
     await expect(readStore<StoredCard>(name, 'pantryCards')).resolves.toHaveLength(2)
@@ -470,6 +470,56 @@ describe('LocalPantryRepository treat economy', () => {
     expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
   })
 
+  it('replays a correct Quiz answer by stable attempt ID without another ingredient', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    const input = { pantryId: pantry.id, cardId: card.id, selectedIndex: 0, attemptId: 'run-1-card-1' }
+
+    const first = await repository.appendQuizAttempt(input, drawIndex(2))
+    const replay = await repository.appendQuizAttempt(input, drawIndex(3))
+
+    expect(replay).toEqual(first)
+    expect(first.reward).toEqual({ type: 'quiz_correct', ingredientId: INGREDIENTS[2].id })
+    expect(await repository.listAttempts(pantry.id)).toHaveLength(1)
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(1)
+  })
+
+  it('replays an incorrect Quiz answer by stable attempt ID without another attempt', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    const input = { pantryId: pantry.id, cardId: card.id, selectedIndex: 3, attemptId: 'run-2-card-1' }
+
+    const first = await repository.appendQuizAttempt(input)
+    const replay = await repository.appendQuizAttempt(input)
+
+    expect(replay).toEqual(first)
+    expect(replay.reward).toEqual({ type: 'quiz_incorrect' })
+    expect(await repository.listAttempts(pantry.id)).toHaveLength(1)
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
+  })
+
+  it('rejects a conflicting Quiz answer replay without changing attempts or rewards', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card, cardWith({ id: 'card-2' })] })
+    const otherPantry = await repository.save({ ...pantryInput('Other'), cards: [card] })
+    const first = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, attemptId: 'run-3-card-1' }, drawIndex(2))
+    const practice = await repository.appendAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, isCorrect: true, mode: 'practice' })
+    await repository.completeQuizSession({ id: 'original-for-replay', pantryId: pantry.id, cards: [pantry.cards[0]], attemptIds: [first.attempt.id] })
+
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 1, attemptId: first.attempt.id })).rejects.toThrow()
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: 'card-2', selectedIndex: 0, attemptId: first.attempt.id })).rejects.toThrow()
+    await expect(repository.appendQuizAttempt({ pantryId: otherPantry.id, cardId: card.id, selectedIndex: 0, attemptId: first.attempt.id })).rejects.toThrow()
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, attemptId: practice.id })).rejects.toThrow()
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, attemptId: first.attempt.id, sourceSessionId: 'original-for-replay' })).rejects.toThrow()
+
+    const attempts = await repository.listAttempts(pantry.id)
+    expect(attempts).toHaveLength(2)
+    expect(attempts).toContainEqual(first.attempt)
+    expect(attempts).toContainEqual(practice)
+    expect(await repository.listAttempts(otherPantry.id)).toEqual([])
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(1)
+  })
+
   it('writes neither the attempt nor an ingredient when the card is missing', async () => {
     const repository = openRepository()
     const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
@@ -486,6 +536,48 @@ describe('LocalPantryRepository treat economy', () => {
     await repository.appendAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, isCorrect: true })
 
     expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
+  })
+
+  it('grades a retry from the original session snapshot after the live card changes or disappears', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    const original = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 }, drawIndex(1))
+    await repository.completeQuizSession({ id: 'source-session', pantryId: pantry.id, cards: pantry.cards, attemptIds: [original.attempt.id] })
+
+    await repository.updateCard(pantry.id, cardWith({ correctIndex: 1 }))
+    const fromSnapshot = await repository.appendQuizAttempt({
+      pantryId: pantry.id, cardId: card.id, selectedIndex: 0, attemptId: 'retry-edited', sourceSessionId: 'source-session',
+    }, drawIndex(2))
+    const fromLiveCard = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 })
+
+    expect(fromSnapshot.attempt).toMatchObject({ isCorrect: true, sourceSessionId: 'source-session' })
+    expect(fromSnapshot.reward).toEqual({ type: 'quiz_correct', ingredientId: INGREDIENTS[2].id })
+    expect(fromLiveCard.attempt.isCorrect).toBe(false)
+
+    await repository.deleteCard(pantry.id, card.id)
+    const afterDeletion = await repository.appendQuizAttempt({
+      pantryId: pantry.id, cardId: card.id, selectedIndex: 0, attemptId: 'retry-deleted', sourceSessionId: 'source-session',
+    }, drawIndex(3))
+    expect(afterDeletion.attempt.isCorrect).toBe(true)
+    expect(afterDeletion.reward).toEqual({ type: 'quiz_correct', ingredientId: INGREDIENTS[3].id })
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(3)
+  })
+
+  it('rejects a retry with a missing, foreign, or mismatched source session', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card, cardWith({ id: 'card-2' })] })
+    const otherPantry = await repository.save({ ...pantryInput('Other'), cards: [card] })
+    const original = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 })
+    const foreign = await repository.appendQuizAttempt({ pantryId: otherPantry.id, cardId: card.id, selectedIndex: 0 })
+    await repository.completeQuizSession({ id: 'only-card-1', pantryId: pantry.id, cards: [pantry.cards[0]], attemptIds: [original.attempt.id] })
+    await repository.completeQuizSession({ id: 'foreign-session', pantryId: otherPantry.id, cards: otherPantry.cards, attemptIds: [foreign.attempt.id] })
+
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, sourceSessionId: 'missing' })).rejects.toThrow()
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, sourceSessionId: 'foreign-session' })).rejects.toThrow()
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: 'card-2', selectedIndex: 0, sourceSessionId: 'only-card-1' })).rejects.toThrow()
+
+    expect(await repository.listAttempts(pantry.id)).toEqual([original.attempt])
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(2)
   })
 
   it('crafts and feeds once per action id, and keeps the shelf after reopening', async () => {
@@ -512,5 +604,135 @@ describe('LocalPantryRepository treat economy', () => {
     await expect(reopened.feedTreat('feed-1', recipe.id, '2026-10-10')).resolves.toMatchObject({ duplicate: true })
     await expect(reopened.feedTreat('feed-2', recipe.id, '2026-10-10')).rejects.toThrow(/No treat/)
     expect((await reopened.loadTreatEconomy()).treats[recipe.id]).toBe(0)
+  })
+})
+
+describe('LocalPantryRepository completed Quiz sessions', () => {
+  const drawIndex = (index: number) => () => (index + 0.5) / INGREDIENTS.length
+
+  it('reopens the exact score, card snapshots, and repeated awarded ingredients', async () => {
+    const name = newDatabaseName()
+    const first = openRepository(name)
+    const cards = [
+      card,
+      cardWith({ id: 'card-2', question: 'Which part absorbs light?', correctIndex: 1 }),
+      cardWith({ id: 'card-3', question: 'Which part stores water?', correctIndex: 2 }),
+    ]
+    const pantry = await first.save({ ...pantryInput('Quiz'), cards })
+    const one = await first.appendQuizAttempt({ pantryId: pantry.id, cardId: 'card-1', selectedIndex: 0 }, drawIndex(2))
+    const two = await first.appendQuizAttempt({ pantryId: pantry.id, cardId: 'card-2', selectedIndex: 0 })
+    const three = await first.appendQuizAttempt({ pantryId: pantry.id, cardId: 'card-3', selectedIndex: 2 }, drawIndex(2))
+    const input = { id: 'quiz-session-1', pantryId: pantry.id, cards: pantry.cards, attemptIds: [one.attempt.id, two.attempt.id, three.attempt.id] }
+
+    const completed = await first.completeQuizSession(input)
+    expect(completed.cards.map((stored) => stored.id)).toEqual(['card-1', 'card-2', 'card-3'])
+    expect(completed.attempts.map((attempt) => attempt.selectedIndex)).toEqual([0, 0, 2])
+    expect(completed.attempts.map((attempt) => attempt.isCorrect)).toEqual([true, false, true])
+    expect(completed.awardedIngredients).toEqual([INGREDIENTS[2].id, INGREDIENTS[2].id])
+    expect(completed.completedAt).toEqual(expect.any(String))
+
+    await first.updateCard(pantry.id, cardWith({ question: 'Edited after Quiz' }))
+    first.close()
+    const reopened = openRepository(name)
+    const restored = await reopened.loadQuizSession('quiz-session-1')
+    expect(restored).toEqual(completed)
+    expect(restored?.cards[0].question).toBe('What does the mitochondrion release from food?')
+    expect(totalIngredients(await reopened.loadTreatEconomy())).toBe(2)
+  })
+
+  it('returns a finalized session on replay without adding attempts or rewards', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    const result = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 }, drawIndex(1))
+    const input = { id: 'quiz-session-2', pantryId: pantry.id, cards: pantry.cards, attemptIds: [result.attempt.id] }
+
+    const first = await repository.completeQuizSession(input)
+    const replay = await repository.completeQuizSession(input)
+
+    expect(replay).toEqual(first)
+    expect(await repository.listAttempts(pantry.id)).toHaveLength(1)
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(1)
+  })
+
+  it('keeps a completed zero-reward session with an empty ingredient list', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    const result = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 3 })
+
+    const completed = await repository.completeQuizSession({
+      id: 'quiz-session-3', pantryId: pantry.id, cards: pantry.cards, attemptIds: [result.attempt.id],
+    })
+
+    expect(completed.awardedIngredients).toEqual([])
+    expect(completed.attempts[0].isCorrect).toBe(false)
+  })
+
+  it('refuses to finalize a Quiz attempt whose reward event has another type', async () => {
+    const name = newDatabaseName()
+    const repository = openRepository(name)
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    const result = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 3 })
+    const raw = new Dexie(name)
+    try {
+      await raw.open()
+      const store = raw.table<{ key: 'current'; value: TreatEconomy }, 'current'>('treatEconomy')
+      const saved = await store.get('current')
+      if (!saved) throw new Error('Expected a saved economy')
+      saved.value.events[`quiz:${result.attempt.id}`] = { type: 'practice_ia', amount: 1 }
+      await store.put(saved)
+    } finally {
+      raw.close()
+    }
+
+    await expect(repository.completeQuizSession({
+      id: 'wrong-reward-event', pantryId: pantry.id, cards: pantry.cards, attemptIds: [result.attempt.id],
+    })).rejects.toThrow(/reward event/)
+    await expect(repository.loadQuizSession('wrong-reward-event')).resolves.toBeUndefined()
+  })
+
+  it('rejects missing, repeated, out-of-order, foreign, and non-Quiz attempts', async () => {
+    const repository = openRepository()
+    const secondCard = cardWith({ id: 'card-2' })
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card, secondCard] })
+    const otherPantry = await repository.save({ ...pantryInput('Other'), cards: [card] })
+    const first = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 })
+    const second = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: secondCard.id, selectedIndex: 3 })
+    const foreign = await repository.appendQuizAttempt({ pantryId: otherPantry.id, cardId: card.id, selectedIndex: 0 })
+    const practice = await repository.appendAttempt({ pantryId: pantry.id, cardId: secondCard.id, selectedIndex: 0, isCorrect: true, mode: 'practice' })
+    const base = { pantryId: pantry.id, cards: pantry.cards }
+    const badAttempts = [
+      [first.attempt.id, 'missing-attempt'],
+      [first.attempt.id, first.attempt.id],
+      [second.attempt.id, first.attempt.id],
+      [foreign.attempt.id, second.attempt.id],
+      [first.attempt.id, practice.id],
+    ]
+
+    for (const [index, attemptIds] of badAttempts.entries()) {
+      const id = `invalid-session-${index}`
+      await expect(repository.completeQuizSession({ ...base, id, attemptIds })).rejects.toThrow()
+      await expect(repository.loadQuizSession(id)).resolves.toBeUndefined()
+    }
+    await expect(repository.completeQuizSession({
+      ...base, id: 'wrong-card-pantry', cards: [{ ...pantry.cards[0], pantryId: otherPantry.id }, pantry.cards[1]],
+      attemptIds: [first.attempt.id, second.attempt.id],
+    })).rejects.toThrow()
+    await expect(repository.loadQuizSession('wrong-card-pantry')).resolves.toBeUndefined()
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(2)
+  })
+
+  it('deletes a pantry’s completed sessions while keeping another pantry’s results', async () => {
+    const repository = openRepository()
+    const firstPantry = await repository.save({ ...pantryInput('First'), cards: [card] })
+    const secondPantry = await repository.save({ ...pantryInput('Second'), cards: [card] })
+    const firstAttempt = await repository.appendQuizAttempt({ pantryId: firstPantry.id, cardId: card.id, selectedIndex: 0 })
+    const secondAttempt = await repository.appendQuizAttempt({ pantryId: secondPantry.id, cardId: card.id, selectedIndex: 0 })
+    await repository.completeQuizSession({ id: 'first-session', pantryId: firstPantry.id, cards: firstPantry.cards, attemptIds: [firstAttempt.attempt.id] })
+    await repository.completeQuizSession({ id: 'second-session', pantryId: secondPantry.id, cards: secondPantry.cards, attemptIds: [secondAttempt.attempt.id] })
+
+    await repository.deletePantry(firstPantry.id)
+
+    await expect(repository.loadQuizSession('first-session')).resolves.toBeUndefined()
+    await expect(repository.loadQuizSession('second-session')).resolves.toMatchObject({ pantryId: secondPantry.id })
   })
 })
