@@ -31,6 +31,7 @@
   color: var(--color-neutral);
   font: 800 24px / 1 var(--font-sans);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -48,11 +49,6 @@
   border-radius: var(--radius-control);
 }
 
-.new-source-button {
-  margin: var(--space-8) 0 var(--space-6);
-}
-
-.sidebar-label,
 .step-label,
 .eyebrow,
 .field-label {
@@ -62,13 +58,117 @@
   text-transform: uppercase;
 }
 
-.sidebar-label {
-  margin: 0 var(--space-2) var(--space-3);
+/* Primary navigation: icon + label rows; the active row is outlined. */
+.main-nav {
+  margin: var(--space-8) 0 var(--space-6);
+}
+
+.main-nav ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-neutral);
+  font: 700 var(--text-body) / 1.3 var(--font-sans);
+  text-decoration: none;
+}
+
+.nav-link > svg {
+  flex: none;
+  color: var(--color-primary);
+}
+
+a.nav-link:hover {
+  background: var(--color-surface);
+}
+
+.nav-link.active {
+  border-color: var(--color-neutral);
+  background: var(--color-surface);
+}
+
+.nav-link.disabled {
+  color: var(--color-muted);
+  cursor: default;
+}
+
+.nav-link.disabled > svg {
+  color: var(--color-muted);
+}
+
+.nav-soon {
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-secondary);
+  color: var(--color-muted);
+  font: 700 var(--text-label) / 1.6 var(--font-sans);
+}
+
+/* Pantry list, shown only inside My Pantries: "My Pantries ⌄  +". */
+.pantry-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 var(--space-2);
+}
+
+.pantry-section-toggle,
+.pantry-section-add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap-target);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.pantry-section-toggle {
+  padding: 0 var(--space-2);
+  font: var(--font-weight-semibold) var(--text-label) / 1.4 var(--font-sans);
+}
+
+.pantry-section-add {
+  justify-content: center;
+  min-width: var(--tap-target);
+}
+
+.pantry-section-toggle:hover,
+.pantry-section-add:hover {
+  background: var(--color-surface);
+  color: var(--color-neutral);
+}
+
+.chevron {
+  display: inline-flex;
+  transition: transform var(--motion-quick) ease;
+}
+
+.chevron.collapsed {
+  transform: rotate(-90deg);
 }
 
 .pantry-nav {
   display: grid;
   gap: var(--space-4);
+}
+
+.pantry-nav[hidden] {
+  display: none;
 }
 
 .pantry-group {
@@ -205,8 +305,7 @@ h2 {
 
 .primary-button,
 .secondary-button,
-.danger-button,
-.new-source-button {
+.danger-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -220,23 +319,16 @@ h2 {
   transition: transform var(--motion-quick) cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow var(--motion-quick) cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.primary-button,
-.new-source-button {
+.primary-button {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: var(--color-white);
   box-shadow: 0 4px 0 var(--color-primary-hover);
 }
 
-.primary-button:hover:not(:disabled),
-.new-source-button:hover {
+.primary-button:hover:not(:disabled) {
   border-color: var(--color-primary-hover);
   background: var(--color-primary-hover);
-}
-
-.new-source-button {
-  width: 100%;
-  justify-content: flex-start;
 }
 
 .secondary-button {
@@ -260,7 +352,7 @@ h2 {
   background: var(--color-danger-surface);
 }
 
-:is(.primary-button, .secondary-button, .danger-button, .new-source-button):active:not(:disabled) {
+:is(.primary-button, .secondary-button, .danger-button):active:not(:disabled) {
   transform: translateY(3px);
   box-shadow: 0 1px 0 var(--color-neutral);
 }
@@ -1029,8 +1121,45 @@ fieldset.manual-options legend {
     display: none;
   }
 
-  .new-source-button {
-    margin: var(--space-4) 0;
+  /* Four destinations fit a bottom tab bar within thumb reach. */
+  .main-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 10;
+    margin: 0;
+    padding: var(--space-1) var(--space-2) calc(var(--space-1) + env(safe-area-inset-bottom));
+    border-top: 2px solid var(--color-border);
+    background: var(--color-surface-muted);
+  }
+
+  .main-nav ul {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .main-nav li {
+    display: grid;
+  }
+
+  .nav-link {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: var(--space-1);
+    font-size: var(--text-label);
+    line-height: 1.15;
+    text-align: center;
+  }
+
+  .nav-soon {
+    margin: 0;
+    padding: 0 var(--space-1);
+    line-height: 1.3;
+  }
+
+  /* The My Pantries page lists pantries on phones. */
+  .pantry-section {
+    display: none;
   }
 
   .pantry-group {
@@ -1046,7 +1175,8 @@ fieldset.manual-options legend {
   }
 
   .main-content {
-    padding: var(--space-8) var(--space-4) var(--space-12);
+    /* Room for the fixed tab bar. */
+    padding: var(--space-8) var(--space-4) calc(var(--space-12) + 72px + env(safe-area-inset-bottom));
   }
 
   .workspace-header,
