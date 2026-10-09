@@ -18,8 +18,10 @@ const colors = {
   dangerSurface: '#FDEDEB',
   info: '#2346C8',
   infoSurface: '#ECF0FD',
+  warningSurface: '#FFF4D5',
   highlight: '#FFEF5A',
   white: '#FFFFFF',
+  overlay: 'rgb(43 38 37 / 45%)',
 } as const
 
 const typography = {
@@ -137,6 +139,16 @@ export const themes = {
 } as const
 
 export const themeCssVariables = {
+  '--paper': colors.secondary,
+  '--ink': colors.neutral,
+  '--copy': colors.copy,
+  '--muted': colors.muted,
+  '--line': colors.border,
+  '--green': colors.primary,
+  '--green-dark': colors.primaryHover,
+  '--sans': typography.fontFamily,
+  '--serif': typography.fontFamily,
+  '--mono': typography.fontFamily,
   '--color-primary': colors.primary,
   '--color-primary-hover': colors.primaryHover,
   '--color-primary-soft': colors.primarySoft,
@@ -156,8 +168,10 @@ export const themeCssVariables = {
   '--color-danger-surface': colors.dangerSurface,
   '--color-info': colors.info,
   '--color-info-surface': colors.infoSurface,
+  '--color-warning-surface': colors.warningSurface,
   '--color-highlight': colors.highlight,
   '--color-white': colors.white,
+  '--color-overlay': colors.overlay,
   '--font-sans': typography.fontFamily,
   '--font-weight-regular': String(typography.weight.regular),
   '--font-weight-medium': String(typography.weight.medium),
