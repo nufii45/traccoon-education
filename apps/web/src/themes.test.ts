@@ -62,6 +62,6 @@ describe('Traccoon theme', () => {
     expect(target.style.getPropertyValue('--color-primary')).toBe('#8D6748')
     expect(target.style.getPropertyValue('--color-neutral')).toBe('#2B2625')
     expect(target.style.getPropertyValue('--font-sans')).toContain('Nunito')
-    expect(target.style.getPropertyValue('--radius-card')).toBe('18px')
+    expect(target.style.getPropertyValue('--radius-card')).toBe('16px')
   })
 })

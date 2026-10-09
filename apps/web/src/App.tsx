@@ -18,6 +18,18 @@ import {
   type PantrySummary,
   type StoredCard,
 } from './features/pantries/repository'
+import {
+  Add01Icon,
+  AlertCircleIcon,
+  ArrowRight02Icon,
+  Cancel01Icon,
+  Delete02Icon,
+  FileUploadIcon,
+  SquareLock02Icon,
+  Tick02Icon,
+} from '@hugeicons/core-free-icons'
+import rokkiMark from './assets/rokki-educ.webp'
+import { Icon } from './components/Icon/Icon'
 import './App.css'
 
 type AppView = 'welcome' | 'workspace' | 'study'
@@ -103,12 +115,12 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar" aria-label="Pantries">
         <button className="brand" onClick={resetToWelcome} type="button">
-          <span className="brand-mark" aria-hidden="true">T</span>
+          <img alt="" className="brand-mark" height="40" src={rokkiMark} width="40" />
           <span>traccoon <b>education</b></span>
         </button>
 
         <button className="new-source-button" onClick={resetToWelcome} type="button">
-          <span aria-hidden="true">＋</span> New source
+          <Icon icon={Add01Icon} /> New source
         </button>
 
         <div className="sidebar-label">Your pantries</div>
@@ -124,20 +136,20 @@ function App() {
                 type="button"
               >
                 <span>{pantry.title}</span>
-                <small>{pantry.cardCount} cards</small>
+                <small>{pantry.cardCount} {pantry.cardCount === 1 ? 'card' : 'cards'}</small>
               </button>
             ))
           )}
         </nav>
 
         <div className="sidebar-footer">
-          <span className="privacy-dot" aria-hidden="true" />
+          <Icon icon={SquareLock02Icon} size={16} />
           Local Private mode
         </div>
       </aside>
 
       <main className="main-content">
-        {error ? <div className="global-error" role="alert">{error}</div> : null}
+        {error ? <div className="global-error" role="alert"><Icon icon={AlertCircleIcon} /><span>{error}</span></div> : null}
         {showManualStarter ? (
           <ManualPantryStarter
             onCancel={resetToWelcome}
@@ -254,7 +266,7 @@ function ImportWorkspace({
         <div className="step-label">01 / BRING A SOURCE</div>
         <label className="file-drop" htmlFor="pdf-file">
           <input accept="application/pdf,.pdf" aria-label="Choose a PDF" id="pdf-file" onChange={(event) => void onFileSelected(event)} type="file" />
-          <span className="file-icon" aria-hidden="true">↥</span>
+          <span className="file-icon"><Icon icon={FileUploadIcon} size={32} /></span>
           <strong>{isReading ? 'Reading local PDF…' : sourceName || 'Choose a PDF'}</strong>
           <small>{sourceName ? `${sourcePages.length} text pages found` : 'Text-based PDF only. Scanned PDFs need OCR, which is not in this demo.'}</small>
         </label>
@@ -275,7 +287,7 @@ function ImportWorkspace({
               </div>
             </fieldset>
             <button className="primary-button" disabled={selectedPages.length === 0} onClick={() => void createPantry()} type="button">
-              Create local pantry <span aria-hidden="true">→</span>
+              Create local pantry <Icon icon={ArrowRight02Icon} />
             </button>
           </div>
         ) : null}
@@ -307,7 +319,7 @@ function ManualPantryStarter({ onCancel, onCreate }: { onCancel: () => void; onC
         <input id="manual-pantry-title" onChange={(event) => setTitle(event.target.value)} value={title} />
         <div className="form-actions">
           <button className="secondary-button" onClick={onCancel} type="button">Back</button>
-          <button className="primary-button" type="submit">Create manual pantry <span aria-hidden="true">→</span></button>
+          <button className="primary-button" type="submit">Create manual pantry <Icon icon={ArrowRight02Icon} /></button>
         </div>
       </form>
     </section>
@@ -424,8 +436,8 @@ function PantryWorkspace({
           {attemptLoadError ? <p className="form-error" role="alert">Answer history could not be loaded from this device.</p> : null}
         </div>
         <div className="header-actions">
-          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} cards</button>
-          <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button">Delete pantry</button>
+          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} {pantry.cards.length === 1 ? 'card' : 'cards'}</button>
+          <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button"><Icon icon={Delete02Icon} />Delete pantry</button>
         </div>
       </header>
 
@@ -518,7 +530,7 @@ function PantryWorkspace({
                 <div className="step-label">04 / YOUR STUDY SET</div>
                 <h2>Kept cards</h2>
               </div>
-              <button className="text-button" onClick={() => setShowManualAuthor((current) => !current)} type="button">+ Add manual card</button>
+              <button className="text-button" onClick={() => setShowManualAuthor((current) => !current)} type="button"><Icon icon={Add01Icon} />Add manual card</button>
             </div>
             {showManualAuthor ? <ManualCardForm onCancel={() => setShowManualAuthor(false)} onSave={(card) => void saveManualCard(card)} sourcePages={pantry.sourcePages} /> : null}
             {pantry.cards.length === 0 ? (
@@ -588,8 +600,8 @@ function ReviewCard({
       </div>
       {errors.length > 0 ? <p className="form-error">{errors.join(' ')}</p> : null}
       <div className="review-actions">
-        <button className="secondary-button" onClick={onDiscard} type="button">Discard</button>
-        <button className="primary-button" onClick={keep} type="button">Keep card <span aria-hidden="true">→</span></button>
+        <button className="secondary-button" onClick={onDiscard} type="button"><Icon icon={Cancel01Icon} />Discard</button>
+        <button className="primary-button" onClick={keep} type="button"><Icon icon={Tick02Icon} />Keep card</button>
       </div>
     </article>
   )

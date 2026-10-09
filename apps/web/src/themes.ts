@@ -43,6 +43,15 @@ const typography = {
     normal: '0',
     label: '0.08em',
   },
+  // 14px is the smallest size used anywhere in the app.
+  fontSize: {
+    label: '14px',
+    body: '16px',
+    lead: '18px',
+    heading: '24px',
+    title: '32px',
+    display: 'clamp(40px, 6vw, 64px)',
+  },
 } as const
 
 const spacing = {
@@ -57,10 +66,16 @@ const spacing = {
   12: '48px',
 } as const
 
+// Spacing and radii sit on a 4px grid.
 const radii = {
-  control: '10px',
-  card: '18px',
+  small: '8px',
+  control: '12px',
+  card: '16px',
   pill: '999px',
+} as const
+
+const sizes = {
+  tapTarget: '44px',
 } as const
 
 const shadows = {
@@ -73,6 +88,7 @@ export const themes = {
   typography,
   spacing,
   radii,
+  sizes,
   shadows,
   motion: {
     quick: '160ms',
@@ -193,9 +209,17 @@ export const themeCssVariables = {
   '--space-8': spacing[8],
   '--space-10': spacing[10],
   '--space-12': spacing[12],
+  '--text-label': typography.fontSize.label,
+  '--text-body': typography.fontSize.body,
+  '--text-lead': typography.fontSize.lead,
+  '--text-heading': typography.fontSize.heading,
+  '--text-title': typography.fontSize.title,
+  '--text-display': typography.fontSize.display,
+  '--radius-small': radii.small,
   '--radius-control': radii.control,
   '--radius-card': radii.card,
   '--radius-pill': radii.pill,
+  '--tap-target': sizes.tapTarget,
   '--shadow-card': shadows.card,
   '--shadow-floating': shadows.floating,
   '--motion-quick': themes.motion.quick,
