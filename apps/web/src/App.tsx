@@ -9,24 +9,25 @@ import {
 } from './features/local-ai/localAiClient'
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
 import type { GeneratedCard, SourcePage } from './features/local-ai/types'
+import { KeptCard } from './features/pantries/KeptCard'
+import { ManualCardForm } from './features/pantries/ManualCardForm'
 import { extractPdfText } from './features/pantries/pdfText'
+import { ReviewCard } from './features/pantries/ReviewCard'
 import { StudySession } from './features/study/StudySession'
 import { summarizeAttempts, type AttemptSummary } from './features/study/attemptSummary'
 import {
   pantryRepository,
   type Pantry,
   type PantrySummary,
-  type StoredCard,
+  type CardToSave,
 } from './features/pantries/repository'
 import {
   Add01Icon,
   AlertCircleIcon,
   ArrowRight02Icon,
-  Cancel01Icon,
   Delete02Icon,
   FileUploadIcon,
   SquareLock02Icon,
-  Tick02Icon,
 } from '@hugeicons/core-free-icons'
 import rokkiMark from './assets/rokki-educ.webp'
 import { Icon } from './components/Icon/Icon'
@@ -34,14 +35,7 @@ import './App.css'
 
 type AppView = 'welcome' | 'workspace' | 'study'
 
-const createLocalId = (prefix: string) =>
-  globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
-
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
-
-const firstSentence = (text: string) => text.match(/[^.!?]+[.!?]+|[^.!?]+$/)?.[0]?.trim() ?? text
-
-const initialOptions = ['', '', '', '']
 
 function App() {
   const [view, setView] = useState<AppView>('welcome')
@@ -69,14 +63,8 @@ function App() {
   const createManualPantry = async (title: string) => {
     const pantry = await pantryRepository.createPantry({
       title,
-      sourceName: 'Manual notes',
-      sourcePages: [
-        {
-          id: 'manual-page-1',
-          pageNumber: 1,
-          text: 'Add a source quote to ground each manual card you create.',
-        },
-      ],
+      sourceName: 'Written by hand',
+      sourcePages: [],
     })
     await refreshPantries()
     setActivePantry(pantry)
@@ -344,6 +332,7 @@ function PantryWorkspace({
   const [generationStatus, setGenerationStatus] = useState<LocalAiStatus>({ stage: 'idle', detail: 'Ready when you are.' })
   const [showManualAuthor, setShowManualAuthor] = useState(false)
   const [confirmingDeletion, setConfirmingDeletion] = useState(false)
+  const hasPdfSource = pantry.sourcePages.length > 0
   const [attemptSummary, setAttemptSummary] = useState<AttemptSummary>()
   const [attemptLoadError, setAttemptLoadError] = useState(false)
 
@@ -402,7 +391,7 @@ function PantryWorkspace({
     })
   }
 
-  const keepCard = async (card: GeneratedCard) => {
+  const keepCard = async (card: CardToSave) => {
     const validation = validateGeneratedCard(card, pantry.sourcePages)
     if (!validation.valid) {
       setGenerationStatus({ stage: 'error', detail: validation.errors.join(' ') })
@@ -426,7 +415,11 @@ function PantryWorkspace({
         <div>
           <div className="eyebrow"><span /> LOCAL PANTRY</div>
           <h1>{pantry.title}</h1>
-          <p>{pantry.sourceName} · {pantry.sourcePages.length} local source {pantry.sourcePages.length === 1 ? 'page' : 'pages'}</p>
+          <p>
+            {hasPdfSource
+              ? `${pantry.sourceName} · ${pantry.sourcePages.length} local source ${pantry.sourcePages.length === 1 ? 'page' : 'pages'}`
+              : 'Written by hand · no PDF'}
+          </p>
           {attemptSummary ? (
             <p className="attempt-summary">
               Recorded on this device: {attemptSummary.correct} of {attemptSummary.answered} answers correct · last studied{' '}
@@ -470,6 +463,8 @@ function PantryWorkspace({
 
       {!showStudy ? (
         <>
+          {hasPdfSource ? (
+          <>
           <section className="generation-panel">
             <div className="panel-header">
               <div>
@@ -523,18 +518,20 @@ function PantryWorkspace({
               </div>
             )}
           </section>
+          </>
+          ) : null}
 
-          <section className="card-section kept-section">
+          <section className={hasPdfSource ? 'card-section kept-section' : 'card-section'}>
             <div className="section-heading">
               <div>
-                <div className="step-label">04 / YOUR STUDY SET</div>
+                <div className="step-label">{hasPdfSource ? '04 / YOUR STUDY SET' : 'YOUR STUDY SET'}</div>
                 <h2>Kept cards</h2>
               </div>
               <button className="text-button" onClick={() => setShowManualAuthor((current) => !current)} type="button"><Icon icon={Add01Icon} />Add manual card</button>
             </div>
             {showManualAuthor ? <ManualCardForm onCancel={() => setShowManualAuthor(false)} onSave={(card) => void saveManualCard(card)} sourcePages={pantry.sourcePages} /> : null}
             {pantry.cards.length === 0 ? (
-              <div className="empty-state">Nothing kept yet. You can review local suggestions or create a card by hand.</div>
+              <div className="empty-state">{hasPdfSource ? 'Nothing kept yet. You can review local suggestions or create a card by hand.' : 'No cards yet. Add your first card by hand.'}</div>
             ) : (
               <div className="kept-grid">
                 {pantry.cards.map((card) => <KeptCard card={card} key={card.id} />)}
@@ -544,151 +541,6 @@ function PantryWorkspace({
         </>
       ) : null}
     </section>
-  )
-}
-
-function ReviewCard({
-  card,
-  onDiscard,
-  onKeep,
-  sourcePages,
-}: {
-  card: GeneratedCard
-  onDiscard: () => void
-  onKeep: (card: GeneratedCard) => void
-  sourcePages: SourcePage[]
-}) {
-  const [draft, setDraft] = useState(card)
-  const [errors, setErrors] = useState<string[]>([])
-
-  const changeOption = (index: number, value: string) => {
-    setDraft((current) => ({
-      ...current,
-      options: current.options.map((option, optionIndex) => (optionIndex === index ? value : option)),
-    }))
-  }
-
-  const keep = () => {
-    const validation = validateGeneratedCard(draft, sourcePages)
-    if (!validation.valid) {
-      setErrors(validation.errors)
-      return
-    }
-    onKeep(draft)
-  }
-
-  return (
-    <article className="review-card">
-      <div className="review-card-topline">
-        <span className="local-badge">LOCAL · WEBLLM</span>
-        <span>Evidence: p. {draft.sourcePage}</span>
-      </div>
-      <label className="field-label" htmlFor={`question-${draft.id}`}>Question</label>
-      <textarea id={`question-${draft.id}`} onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))} value={draft.question} />
-      <div className="option-list">
-        {draft.options.map((option, index) => (
-          <label className={index === draft.correctIndex ? 'option correct' : 'option'} key={`${draft.id}-${index}`}>
-            <input checked={index === draft.correctIndex} name={`correct-${draft.id}`} onChange={() => setDraft((current) => ({ ...current, correctIndex: index }))} type="radio" />
-            <span>{String.fromCharCode(65 + index)}</span>
-            <input aria-label={`Option ${index + 1}`} onChange={(event) => changeOption(index, event.target.value)} value={option} />
-          </label>
-        ))}
-      </div>
-      <div className="evidence-box">
-        <span>Source quote · p. {draft.sourcePage}</span>
-        <textarea aria-label="Source quote" onChange={(event) => setDraft((current) => ({ ...current, sourceQuote: event.target.value }))} value={draft.sourceQuote} />
-      </div>
-      {errors.length > 0 ? <p className="form-error">{errors.join(' ')}</p> : null}
-      <div className="review-actions">
-        <button className="secondary-button" onClick={onDiscard} type="button"><Icon icon={Cancel01Icon} />Discard</button>
-        <button className="primary-button" onClick={keep} type="button"><Icon icon={Tick02Icon} />Keep card</button>
-      </div>
-    </article>
-  )
-}
-
-function ManualCardForm({
-  onCancel,
-  onSave,
-  sourcePages,
-}: {
-  onCancel: () => void
-  onSave: (card: GeneratedCard) => void
-  sourcePages: SourcePage[]
-}) {
-  const [question, setQuestion] = useState('')
-  const [options, setOptions] = useState(initialOptions)
-  const [correctIndex, setCorrectIndex] = useState(0)
-  const [sourcePage, setSourcePage] = useState(sourcePages[0]?.pageNumber ?? 1)
-  const [sourceQuote, setSourceQuote] = useState(firstSentence(sourcePages[0]?.text ?? ''))
-  const [errors, setErrors] = useState<string[]>([])
-
-  const changePage = (pageNumber: number) => {
-    setSourcePage(pageNumber)
-    setSourceQuote(firstSentence(sourcePages.find((page) => page.pageNumber === pageNumber)?.text ?? ''))
-  }
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const card: GeneratedCard = {
-      id: createLocalId('manual-card'),
-      question,
-      options,
-      correctIndex,
-      sourcePage,
-      sourceQuote,
-      sourceChunkId: `manual-page-${sourcePage}`,
-      generationMode: 'local-private',
-      generationMethod: 'manual',
-      createdAt: new Date().toISOString(),
-    }
-    const validation = validateGeneratedCard(card, sourcePages)
-    if (!validation.valid) {
-      setErrors(validation.errors)
-      return
-    }
-    onSave(card)
-  }
-
-  return (
-    <form className="manual-card-form" onSubmit={submit}>
-      <h3>Manual card</h3>
-      <label className="field-label" htmlFor="manual-question">Question</label>
-      <textarea id="manual-question" onChange={(event) => setQuestion(event.target.value)} placeholder="Write a question answered by the source…" value={question} />
-      <div className="manual-options">
-        {options.map((option, index) => (
-          <label key={`manual-option-${index}`}>
-            <input checked={correctIndex === index} name="manual-correct" onChange={() => setCorrectIndex(index)} type="radio" />
-            <span>{String.fromCharCode(65 + index)}</span>
-            <input aria-label={`Manual option ${index + 1}`} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Option ${index + 1}`} value={option} />
-          </label>
-        ))}
-      </div>
-      <div className="manual-source-fields">
-        <label className="field-label" htmlFor="manual-source-page">Cited page</label>
-        <select id="manual-source-page" onChange={(event) => changePage(Number(event.target.value))} value={sourcePage}>
-          {sourcePages.map((page) => <option key={page.id} value={page.pageNumber}>Page {page.pageNumber}</option>)}
-        </select>
-        <label className="field-label" htmlFor="manual-source-quote">Exact source quote</label>
-        <textarea id="manual-source-quote" onChange={(event) => setSourceQuote(event.target.value)} value={sourceQuote} />
-      </div>
-      {errors.length > 0 ? <p className="form-error">{errors.join(' ')}</p> : null}
-      <div className="review-actions">
-        <button className="secondary-button" onClick={onCancel} type="button">Cancel</button>
-        <button className="primary-button" type="submit">Save local card</button>
-      </div>
-    </form>
-  )
-}
-
-function KeptCard({ card }: { card: StoredCard }) {
-  return (
-    <article className="kept-card">
-      <span className="local-badge">{card.generationMethod === 'manual' ? 'MANUAL' : 'LOCAL AI'}</span>
-      <h3>{card.question}</h3>
-      <p>Correct answer: <strong>{card.options[card.correctIndex]}</strong></p>
-      <footer>p. {card.sourcePage} · “{card.sourceQuote}”</footer>
-    </article>
   )
 }
 

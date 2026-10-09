@@ -11,6 +11,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { Icon } from '../../components/Icon/Icon'
 import type { SourcePage } from '../local-ai/types'
+import { hasSource } from '../pantries/cardSource'
 import type { StoredCard } from '../pantries/repository'
 import { SourceView } from './SourceView'
 import {
@@ -118,9 +119,11 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
                       Answer: {letter(missedCard.correctIndex)}, {missedCard.options[missedCard.correctIndex]}
                     </p>
                   </div>
-                  <button className={`text-button ${styles.tapTarget}`} onClick={() => setSourceCard(missedCard)} type="button">
-                    <Icon icon={FileSearchIcon} size={16} />See source · p.{missedCard.sourcePage}
-                  </button>
+                  {hasSource(missedCard) ? (
+                    <button className={`text-button ${styles.tapTarget}`} onClick={() => setSourceCard(missedCard)} type="button">
+                      <Icon icon={FileSearchIcon} size={16} />See source · p.{missedCard.sourcePage}
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -167,7 +170,8 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
       {saveError ? <p className="form-error" role="alert">{saveError}</p> : null}
       <article className="study-card">
         <p className={styles.cardMeta}>
-          From page {card.sourcePage} · {card.generationMethod === 'manual' ? 'Manual' : 'On-device'}
+          {hasSource(card) ? `From page ${card.sourcePage}` : 'No source'} · {card.generationMethod === 'manual' ? 'Manual' : 'On-device'}
+          {card.isEdited ? ' · Edited' : ''}
         </p>
         <h3 ref={questionRef} tabIndex={-1}>{card.question}</h3>
         <div className="study-options">
@@ -210,9 +214,11 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
         <div className="study-actions">
           {result ? (
             <>
-              <button className={`secondary-button ${styles.tapTarget}`} onClick={() => setSourceCard(card)} type="button">
-                <Icon icon={FileSearchIcon} />See source · p.{card.sourcePage}
-              </button>
+              {hasSource(card) ? (
+                <button className={`secondary-button ${styles.tapTarget}`} onClick={() => setSourceCard(card)} type="button">
+                  <Icon icon={FileSearchIcon} />See source · p.{card.sourcePage}
+                </button>
+              ) : null}
               <button className={`primary-button ${styles.tapTarget}`} onClick={continueSession} ref={nextButtonRef} type="button">
                 {state.position + 1 === state.cards.length ? 'See results' : 'Next card'} <Icon icon={ArrowRight02Icon} />
               </button>

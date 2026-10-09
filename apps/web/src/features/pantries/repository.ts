@@ -10,7 +10,12 @@ interface PantryRecord {
   updatedAt: string
 }
 
-export interface StoredCard extends GeneratedCard {
+/** A card as saved; isEdited marks a generated card the learner changed. */
+export interface CardToSave extends GeneratedCard {
+  isEdited?: boolean
+}
+
+export interface StoredCard extends CardToSave {
   pantryId: string
 }
 
@@ -116,7 +121,7 @@ export class LocalPantryRepository {
     return { ...pantry, cards }
   }
 
-  async saveCards(pantryId: string, cards: GeneratedCard[]): Promise<void> {
+  async saveCards(pantryId: string, cards: CardToSave[]): Promise<void> {
     await this.db.transaction('rw', this.db.pantries, this.db.cards, async () => {
       const pantry = await this.db.pantries.get(pantryId)
       if (!pantry) {
