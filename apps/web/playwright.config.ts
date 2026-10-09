@@ -1,14 +1,27 @@
 import { defineConfig } from '@playwright/test'
+import { APP_ORIGIN } from './e2e/networkPolicy'
+
+// Uses the installed system browser; no `playwright install` download needed.
+// Override with PLAYWRIGHT_CHROME_EXECUTABLE, e.g. Edge on Windows:
+// C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
+const defaultChromeExecutable = (platform: NodeJS.Platform): string => {
+  if (platform === 'win32') {
+    return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+  }
+  if (platform === 'linux') {
+    return '/usr/bin/google-chrome'
+  }
+  return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+}
 
 const chromeExecutable = process.env.PLAYWRIGHT_CHROME_EXECUTABLE
-  ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-
+  ?? defaultChromeExecutable(process.platform)
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   timeout: 30_000,
   use: {
-    baseURL: 'http://127.0.0.1:4174',
+    baseURL: APP_ORIGIN,
     browserName: 'chromium',
     launchOptions: {
       executablePath: chromeExecutable,
@@ -16,7 +29,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'pnpm dev --host 127.0.0.1 --port 4174 --strictPort',
-    url: 'http://127.0.0.1:4174',
+    url: APP_ORIGIN,
     reuseExistingServer: false,
     timeout: 120_000,
   },

@@ -133,7 +133,7 @@ function App() {
 
         <div className="sidebar-footer">
           <Icon icon={SquareLock02Icon} size={16} />
-          Local Private mode
+          Local Private: no study content sent for generation
         </div>
       </aside>
 
