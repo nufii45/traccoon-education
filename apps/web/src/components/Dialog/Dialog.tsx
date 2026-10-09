@@ -3,7 +3,7 @@ import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import { Icon } from '../Icon/Icon'
 import styles from './Dialog.module.css'
 
-export type DialogVariant = 'modal' | 'drawer'
+export type DialogVariant = 'modal' | 'drawer' | 'preview'
 
 interface DialogProps {
   isOpen: boolean

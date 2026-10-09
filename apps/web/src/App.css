@@ -441,6 +441,24 @@ select:focus-visible {
 
 /* ---------- Page picker ---------- */
 
+.page-selection-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.page-selection-summary p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+}
+
 .page-picker {
   margin: 0 0 var(--space-2);
   padding: 0;

@@ -1,4 +1,4 @@
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { SourcePage } from '../local-ai/types'
 
@@ -16,15 +16,20 @@ export class PdfTextLayerError extends Error {
   }
 }
 
-export const extractPdfText = async (file: File): Promise<SourcePage[]> => {
+export interface PdfSource {
+  pages: SourcePage[]
+  document: PDFDocumentProxy
+  destroy: () => Promise<void>
+}
+
+export const loadPdfSource = async (file: File): Promise<PdfSource> => {
   if (file.type && file.type !== 'application/pdf') {
     throw new Error('Choose a PDF file.')
   }
 
   const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
-  const document = await loadingTask.promise
-
   try {
+    const document = await loadingTask.promise
     const pages: SourcePage[] = []
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
@@ -38,15 +43,16 @@ export const extractPdfText = async (file: File): Promise<SourcePage[]> => {
       )
 
       pages.push({ id: `page-${pageNumber}`, pageNumber, text })
+      page.cleanup()
     }
 
     if (!hasUsableTextLayer(pages)) {
       throw new PdfTextLayerError()
     }
 
-    return pages
-  } finally {
-    await document.cleanup()
+    return { pages, document, destroy: () => loadingTask.destroy() }
+  } catch (reason) {
     await loadingTask.destroy()
+    throw reason
   }
 }
