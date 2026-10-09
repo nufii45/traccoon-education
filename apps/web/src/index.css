@@ -11,6 +11,9 @@
 body {
   min-width: 320px;
   margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -24,4 +27,19 @@ textarea:focus-visible,
 select:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
+}
+
+/* Headings that receive focus programmatically during study. */
+[tabindex='-1']:focus-visible {
+  outline: 2px dashed var(--color-focus);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
