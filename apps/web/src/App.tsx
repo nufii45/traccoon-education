@@ -10,6 +10,7 @@ import {
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
 import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
+import { GenerationProgress } from './features/pantries/GenerationProgress'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
 import { ModelReadinessPanel } from './features/pantries/ModelReadinessPanel'
 import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
@@ -87,9 +88,11 @@ function AppRoutes() {
     void refreshPantries()
   }, [])
 
-  // An error belongs to the screen that raised it.
+  // An error belongs to the screen that raised it, and a new screen starts at
+  // the top: client-side navigation keeps the previous scroll position otherwise.
   useEffect(() => {
     setError(undefined)
+    document.documentElement.scrollTop = 0
   }, [location.pathname])
 
   const goHome = () => navigate('/pantries')
@@ -538,7 +541,7 @@ function PantryWorkspace({
                 {generationStatus.stage === 'downloading' || generationStatus.stage === 'generating' ? 'Working locally…' : 'Generate local cards'}
               </button>
               {generationController ? <button className="secondary-button" onClick={() => generationController.abort()} type="button">Cancel</button> : null}
-              <span className="status-copy">{generationStatus.detail}</span>
+              <GenerationProgress status={generationStatus} />
             </div>
           </section>
 

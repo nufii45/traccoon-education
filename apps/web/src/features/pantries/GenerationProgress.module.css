@@ -1,0 +1,86 @@
+/* Spinner that morphs into a checkmark. One SVG for both states, so the
+   ring completes and the check draws in when generation succeeds. */
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+}
+
+.message {
+  color: var(--color-copy);
+  font-size: var(--text-label);
+}
+
+.indicator {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+
+.ring,
+.check {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Circumference of r=10 is ~62.8: show a quarter arc while working. */
+.ring {
+  stroke-dasharray: 62.8;
+  stroke-dashoffset: 47;
+  transform-origin: 12px 12px;
+  transition: stroke-dashoffset var(--motion-standard) ease;
+}
+
+.check {
+  stroke-dasharray: 15;
+  stroke-dashoffset: 15;
+  transition: stroke-dashoffset var(--motion-standard) ease 0.2s;
+}
+
+.indicator[data-state='working'] {
+  color: var(--color-primary);
+}
+
+.indicator[data-state='working'] .ring {
+  animation: spin 0.9s linear infinite;
+}
+
+.indicator[data-state='done'] {
+  color: var(--color-success);
+}
+
+.indicator[data-state='done'] .ring,
+.indicator[data-state='done'] .check {
+  stroke-dashoffset: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator[data-state='working'] .ring {
+    animation: none;
+  }
+
+  .ring,
+  .check {
+    transition: none;
+  }
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

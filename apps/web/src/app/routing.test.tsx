@@ -69,6 +69,18 @@ describe('navigation and URLs', () => {
     expect(window.location.pathname).toBe(`/learn/practice/${pantry.id}`)
   })
 
+  it('starts each new screen at the top of the page', async () => {
+    await createPantryWithCard('Scrolled set')
+    render(<App />)
+    document.documentElement.scrollTop = 400
+
+    const sidebar = screen.getByRole('complementary', { name: 'Pantries' })
+    fireEvent.click(await within(sidebar).findByRole('button', { name: /Scrolled set/ }))
+    await screen.findByRole('heading', { level: 1, name: 'Scrolled set' })
+
+    expect(document.documentElement.scrollTop).toBe(0)
+  })
+
   it('opens a pantry directly from its URL, as after a reload', async () => {
     const pantry = await createPantryWithCard('Deep link set')
     window.history.replaceState(null, '', `/pantries/${pantry.id}`)

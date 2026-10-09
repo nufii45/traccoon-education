@@ -32,7 +32,7 @@ export function Sidebar({ summaries, activePantryId, onNewSource }: SidebarProps
     <aside className="sidebar" aria-label="Pantries">
       <Link className="brand" to="/pantries">
         <img alt="" className="brand-mark" height="40" src={rokkiMark} width="40" />
-        <span>traccoon <b>education</b></span>
+        <span className="brand-wordmark">Traccoon <b>Education</b></span>
       </Link>
 
       <nav aria-label="Main" className="main-nav">
