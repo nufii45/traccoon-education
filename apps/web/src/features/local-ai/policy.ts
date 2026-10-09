@@ -1,0 +1,4 @@
+export const MAX_SELECTED_PAGES = 3
+export const MAX_CARDS_PER_RUN = 3
+export const MIN_NORMALIZED_QUOTE_CHARS = 32
+export const MAX_REGENERATION_RETRIES = 2

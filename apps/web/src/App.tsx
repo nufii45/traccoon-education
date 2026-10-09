@@ -1,0 +1,716 @@
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { validateGeneratedCard } from './features/local-ai/cardRules'
+import { chunkSourcePages, selectSourcePages } from './features/local-ai/chunks'
+import {
+  generateCardsLocally,
+  LocalGenerationCancelledError,
+  LocalGenerationUnsupportedError,
+  type LocalAiStatus,
+} from './features/local-ai/localAiClient'
+import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
+import type { GeneratedCard, SourcePage } from './features/local-ai/types'
+import { extractPdfText } from './features/pantries/pdfText'
+import {
+  pantryRepository,
+  type Pantry,
+  type PantrySummary,
+  type StoredCard,
+} from './features/pantries/repository'
+import './App.css'
+
+type AppView = 'welcome' | 'workspace' | 'study'
+
+const createLocalId = (prefix: string) =>
+  globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
+
+const firstSentence = (text: string) => text.match(/[^.!?]+[.!?]+|[^.!?]+$/)?.[0]?.trim() ?? text
+
+const initialOptions = ['', '', '', '']
+
+function App() {
+  const [view, setView] = useState<AppView>('welcome')
+  const [summaries, setSummaries] = useState<PantrySummary[]>([])
+  const [activePantry, setActivePantry] = useState<Pantry>()
+  const [showManualStarter, setShowManualStarter] = useState(false)
+  const [error, setError] = useState<string>()
+
+  const refreshPantries = async () => {
+    setSummaries(await pantryRepository.listPantries())
+  }
+
+  useEffect(() => {
+    void refreshPantries()
+  }, [])
+
+  const openPantry = async (id: string) => {
+    const pantry = await pantryRepository.getPantry(id)
+    setActivePantry(pantry)
+    setShowManualStarter(false)
+    setError(undefined)
+    setView('workspace')
+  }
+
+  const createManualPantry = async (title: string) => {
+    const pantry = await pantryRepository.createPantry({
+      title,
+      sourceName: 'Manual notes',
+      sourcePages: [
+        {
+          id: 'manual-page-1',
+          pageNumber: 1,
+          text: 'Add a source quote to ground each manual card you create.',
+        },
+      ],
+    })
+    await refreshPantries()
+    setActivePantry(pantry)
+    setShowManualStarter(false)
+    setView('workspace')
+  }
+
+  const handlePantryChange = async () => {
+    if (!activePantry) {
+      return
+    }
+
+    const refreshed = await pantryRepository.getPantry(activePantry.id)
+    setActivePantry(refreshed)
+    await refreshPantries()
+  }
+
+  const resetToWelcome = () => {
+    setActivePantry(undefined)
+    setShowManualStarter(false)
+    setError(undefined)
+    setView('welcome')
+  }
+
+  const deleteActivePantry = async () => {
+    if (!activePantry) {
+      return
+    }
+
+    await pantryRepository.deletePantry(activePantry.id)
+    await refreshPantries()
+    resetToWelcome()
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar" aria-label="Pantries">
+        <button className="brand" onClick={resetToWelcome} type="button">
+          <span className="brand-mark" aria-hidden="true">T</span>
+          <span>traccoon <b>education</b></span>
+        </button>
+
+        <button className="new-source-button" onClick={resetToWelcome} type="button">
+          <span aria-hidden="true">＋</span> New source
+        </button>
+
+        <div className="sidebar-label">Your pantries</div>
+        <nav className="pantry-nav">
+          {summaries.length === 0 ? (
+            <p className="empty-nav">Your study sets stay on this device.</p>
+          ) : (
+            summaries.map((pantry) => (
+              <button
+                className={activePantry?.id === pantry.id ? 'pantry-link active' : 'pantry-link'}
+                key={pantry.id}
+                onClick={() => void openPantry(pantry.id)}
+                type="button"
+              >
+                <span>{pantry.title}</span>
+                <small>{pantry.cardCount} cards</small>
+              </button>
+            ))
+          )}
+        </nav>
+
+        <div className="sidebar-footer">
+          <span className="privacy-dot" aria-hidden="true" />
+          Local Private mode
+        </div>
+      </aside>
+
+      <main className="main-content">
+        {error ? <div className="global-error" role="alert">{error}</div> : null}
+        {showManualStarter ? (
+          <ManualPantryStarter
+            onCancel={resetToWelcome}
+            onCreate={(title) => void createManualPantry(title)}
+          />
+        ) : activePantry ? (
+          <PantryWorkspace
+            key={activePantry.id}
+            onDelete={() => void deleteActivePantry()}
+            onPantryChange={() => void handlePantryChange()}
+            onStudy={() => setView((current) => current === 'study' ? 'workspace' : 'study')}
+            pantry={activePantry}
+            showStudy={view === 'study'}
+          />
+        ) : (
+          <ImportWorkspace
+            onError={setError}
+            onPantryCreated={async (id) => {
+              await refreshPantries()
+              await openPantry(id)
+            }}
+            onStartManual={() => setShowManualStarter(true)}
+          />
+        )}
+      </main>
+    </div>
+  )
+}
+
+function ImportWorkspace({
+  onError,
+  onPantryCreated,
+  onStartManual,
+}: {
+  onError: (message: string | undefined) => void
+  onPantryCreated: (id: string) => Promise<void>
+  onStartManual: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [sourceName, setSourceName] = useState('')
+  const [sourcePages, setSourcePages] = useState<SourcePage[]>([])
+  const [selectedPages, setSelectedPages] = useState<number[]>([])
+  const [isReading, setIsReading] = useState(false)
+
+  const onFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    onError(undefined)
+    setIsReading(true)
+
+    try {
+      const pages = await extractPdfText(file)
+      setSourceName(file.name)
+      setTitle(titleFromFileName(file.name))
+      setSourcePages(pages)
+      setSelectedPages([])
+    } catch (reason) {
+      onError(reason instanceof Error ? reason.message : 'Traccoon could not read that PDF.')
+      setSourcePages([])
+      setSelectedPages([])
+    } finally {
+      setIsReading(false)
+    }
+  }
+
+  const createPantry = async () => {
+    if (sourcePages.length === 0 || selectedPages.length === 0) {
+      onError('Choose a text-based PDF and select one to three pages first.')
+      return
+    }
+
+    try {
+      const selected = selectSourcePages(sourcePages, selectedPages)
+      const pantry = await pantryRepository.createPantry({
+        title: title || titleFromFileName(sourceName),
+        sourceName,
+        sourcePages: selected,
+      })
+      await onPantryCreated(pantry.id)
+    } catch (reason) {
+      onError(reason instanceof Error ? reason.message : 'Traccoon could not create this pantry.')
+    }
+  }
+
+  const togglePage = (pageNumber: number) => {
+    setSelectedPages((current) => {
+      if (current.includes(pageNumber)) {
+        return current.filter((page) => page !== pageNumber)
+      }
+      if (current.length === MAX_SELECTED_PAGES) {
+        onError(`P0 generation uses one to ${MAX_SELECTED_PAGES} pages at a time.`)
+        return current
+      }
+      onError(undefined)
+      return [...current, pageNumber].sort((a, b) => a - b)
+    })
+  }
+
+  return (
+    <section className="welcome-workspace">
+      <div className="eyebrow"><span /> LOCAL PRIVATE STUDY STUDIO</div>
+      <h1>Study from your source. <em>Locally.</em></h1>
+      <p className="hero-copy">Turn a few pages of a text-based PDF into reviewable cards without sending the document to a server.</p>
+
+      <div className="privacy-callout">
+        <strong>Your material stays here.</strong>
+        <span>No upload. No account. No cloud generation in this MVP.</span>
+      </div>
+
+      <div className="import-panel">
+        <div className="step-label">01 / BRING A SOURCE</div>
+        <label className="file-drop" htmlFor="pdf-file">
+          <input accept="application/pdf,.pdf" aria-label="Choose a PDF" id="pdf-file" onChange={(event) => void onFileSelected(event)} type="file" />
+          <span className="file-icon" aria-hidden="true">↥</span>
+          <strong>{isReading ? 'Reading local PDF…' : sourceName || 'Choose a PDF'}</strong>
+          <small>{sourceName ? `${sourcePages.length} text pages found` : 'Text-based PDF only. Scanned PDFs need OCR, which is not in this demo.'}</small>
+        </label>
+
+        {sourcePages.length > 0 ? (
+          <div className="source-setup">
+            <label className="field-label" htmlFor="pantry-title">Pantry name</label>
+            <input id="pantry-title" onChange={(event) => setTitle(event.target.value)} value={title} />
+            <fieldset className="page-picker">
+              <legend>Select 1–3 pages for the first card batch</legend>
+              <div className="page-options">
+                {sourcePages.map((page) => (
+                  <label key={page.id}>
+                    <input checked={selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} type="checkbox" />
+                    <span>p. {page.pageNumber}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <button className="primary-button" disabled={selectedPages.length === 0} onClick={() => void createPantry()} type="button">
+              Create local pantry <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="manual-row">
+        <span>Already have questions in mind?</span>
+        <button onClick={onStartManual} type="button">Start a manual pantry</button>
+      </div>
+    </section>
+  )
+}
+
+function ManualPantryStarter({ onCancel, onCreate }: { onCancel: () => void; onCreate: (title: string) => void }) {
+  const [title, setTitle] = useState('My study set')
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    onCreate(title)
+  }
+
+  return (
+    <section className="manual-starter">
+      <div className="eyebrow"><span /> MANUAL AUTHORING</div>
+      <h1>Build your first card</h1>
+      <p className="hero-copy">Skip local generation and author a small, evidence-linked study set yourself.</p>
+      <form className="starter-form" onSubmit={submit}>
+        <label className="field-label" htmlFor="manual-pantry-title">Pantry name</label>
+        <input id="manual-pantry-title" onChange={(event) => setTitle(event.target.value)} value={title} />
+        <div className="form-actions">
+          <button className="secondary-button" onClick={onCancel} type="button">Back</button>
+          <button className="primary-button" type="submit">Create manual pantry <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+function PantryWorkspace({
+  onDelete,
+  onPantryChange,
+  onStudy,
+  pantry,
+  showStudy,
+}: {
+  onDelete: () => void
+  onPantryChange: () => void
+  onStudy: () => void
+  pantry: Pantry
+  showStudy: boolean
+}) {
+  const [selectedPages, setSelectedPages] = useState<number[]>(() => pantry.sourcePages.slice(0, MAX_SELECTED_PAGES).map((page) => page.pageNumber))
+  const [candidates, setCandidates] = useState<GeneratedCard[]>([])
+  const [generationStatus, setGenerationStatus] = useState<LocalAiStatus>({ stage: 'idle', detail: 'Ready when you are.' })
+  const [showManualAuthor, setShowManualAuthor] = useState(false)
+  const [confirmingDeletion, setConfirmingDeletion] = useState(false)
+  const [generationController, setGenerationController] = useState<AbortController>()
+
+  const generate = async () => {
+    const controller = new AbortController()
+    setGenerationController(controller)
+
+    try {
+      const pages = selectSourcePages(pantry.sourcePages, selectedPages)
+      const result = await generateCardsLocally({
+        chunks: chunkSourcePages(pages),
+        sourcePages: pages,
+        requestedCount: MAX_CARDS_PER_RUN,
+        onStatus: setGenerationStatus,
+        signal: controller.signal,
+      })
+      setCandidates(result.cards)
+    } catch (reason) {
+      if (reason instanceof LocalGenerationCancelledError || reason instanceof LocalGenerationUnsupportedError) {
+        return
+      }
+      setGenerationStatus({
+        stage: 'error',
+        detail: reason instanceof Error ? reason.message : 'Local generation could not start.',
+      })
+    } finally {
+      setGenerationController(undefined)
+    }
+  }
+
+  const togglePage = (pageNumber: number) => {
+    setSelectedPages((current) => {
+      if (current.includes(pageNumber)) {
+        return current.filter((page) => page !== pageNumber)
+      }
+      if (current.length === MAX_SELECTED_PAGES) {
+        setGenerationStatus({ stage: 'error', detail: `Choose no more than ${MAX_SELECTED_PAGES} pages for one generation run.` })
+        return current
+      }
+      return [...current, pageNumber].sort((a, b) => a - b)
+    })
+  }
+
+  const keepCard = async (card: GeneratedCard) => {
+    const validation = validateGeneratedCard(card, pantry.sourcePages)
+    if (!validation.valid) {
+      setGenerationStatus({ stage: 'error', detail: validation.errors.join(' ') })
+      return
+    }
+
+    await pantryRepository.saveCards(pantry.id, [card])
+    setCandidates((current) => current.filter((candidate) => candidate.id !== card.id))
+    await onPantryChange()
+  }
+
+  const saveManualCard = async (card: GeneratedCard) => {
+    await pantryRepository.saveCards(pantry.id, [card])
+    setShowManualAuthor(false)
+    await onPantryChange()
+  }
+
+  return (
+    <section className="workspace">
+      <header className="workspace-header">
+        <div>
+          <div className="eyebrow"><span /> LOCAL PANTRY</div>
+          <h1>{pantry.title}</h1>
+          <p>{pantry.sourceName} · {pantry.sourcePages.length} local source {pantry.sourcePages.length === 1 ? 'page' : 'pages'}</p>
+        </div>
+        <div className="header-actions">
+          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} cards</button>
+          <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button">Delete pantry</button>
+        </div>
+      </header>
+
+      {confirmingDeletion ? (
+        <div className="delete-confirmation" role="alert">
+          <span>Delete this pantry, its source text, cards, and answer attempts from this browser?</span>
+          <div>
+            <button className="secondary-button" onClick={() => setConfirmingDeletion(false)} type="button">Keep pantry</button>
+            <button className="danger-button" onClick={onDelete} type="button">Confirm local deletion</button>
+          </div>
+        </div>
+      ) : null}
+
+      {showStudy ? (
+        <StudySession
+          cards={pantry.cards}
+          onAttempt={(selectedIndex, isCorrect, cardId) =>
+            pantryRepository.saveAttempt({
+              pantryId: pantry.id,
+              cardId,
+              selectedIndex,
+              isCorrect,
+            })
+          }
+          onBack={onStudy}
+        />
+      ) : null}
+
+      {!showStudy ? (
+        <>
+          <section className="generation-panel">
+            <div className="panel-header">
+              <div>
+                <div className="step-label">02 / MAKE A SMALL BATCH</div>
+                <h2>Generate up to {MAX_CARDS_PER_RUN} reviewable cards</h2>
+              </div>
+              <span className={`model-status ${generationStatus.stage}`}>{generationStatus.stage.replace('-', ' ')}</span>
+            </div>
+            <p className="panel-copy">WebLLM runs in a worker on this browser when WebGPU is ready. Every suggestion must pass a local source-quote check before you can keep it.</p>
+            <fieldset className="page-picker compact">
+              <legend>Source pages</legend>
+              <div className="page-options">
+                {pantry.sourcePages.map((page) => (
+                  <label key={page.id}>
+                    <input checked={selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} type="checkbox" />
+                    <span>p. {page.pageNumber}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div className="generation-actions">
+              <button className="primary-button" disabled={selectedPages.length === 0 || generationStatus.stage === 'downloading' || generationStatus.stage === 'generating'} onClick={() => void generate()} type="button">
+                {generationStatus.stage === 'downloading' || generationStatus.stage === 'generating' ? 'Working locally…' : 'Generate local cards'}
+              </button>
+              {generationController ? <button className="secondary-button" onClick={() => generationController.abort()} type="button">Cancel</button> : null}
+              <span className="status-copy">{generationStatus.detail}</span>
+            </div>
+          </section>
+
+          <section className="card-section">
+            <div className="section-heading">
+              <div>
+                <div className="step-label">03 / REVIEW BEFORE KEEPING</div>
+                <h2>Suggested cards</h2>
+              </div>
+              <span>{candidates.length} waiting</span>
+            </div>
+            {candidates.length === 0 ? (
+              <div className="empty-state">Generate from one to three selected pages, then review each source-linked suggestion here.</div>
+            ) : (
+              <div className="candidate-stack">
+                {candidates.map((card) => (
+                  <ReviewCard
+                    card={card}
+                    key={card.id}
+                    onDiscard={() => setCandidates((current) => current.filter((candidate) => candidate.id !== card.id))}
+                    onKeep={(updated) => void keepCard(updated)}
+                    sourcePages={pantry.sourcePages}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="card-section kept-section">
+            <div className="section-heading">
+              <div>
+                <div className="step-label">04 / YOUR STUDY SET</div>
+                <h2>Kept cards</h2>
+              </div>
+              <button className="text-button" onClick={() => setShowManualAuthor((current) => !current)} type="button">+ Add manual card</button>
+            </div>
+            {showManualAuthor ? <ManualCardForm onCancel={() => setShowManualAuthor(false)} onSave={(card) => void saveManualCard(card)} sourcePages={pantry.sourcePages} /> : null}
+            {pantry.cards.length === 0 ? (
+              <div className="empty-state">Nothing kept yet. You can review local suggestions or create a card by hand.</div>
+            ) : (
+              <div className="kept-grid">
+                {pantry.cards.map((card) => <KeptCard card={card} key={card.id} />)}
+              </div>
+            )}
+          </section>
+        </>
+      ) : null}
+    </section>
+  )
+}
+
+function ReviewCard({
+  card,
+  onDiscard,
+  onKeep,
+  sourcePages,
+}: {
+  card: GeneratedCard
+  onDiscard: () => void
+  onKeep: (card: GeneratedCard) => void
+  sourcePages: SourcePage[]
+}) {
+  const [draft, setDraft] = useState(card)
+  const [errors, setErrors] = useState<string[]>([])
+
+  const changeOption = (index: number, value: string) => {
+    setDraft((current) => ({
+      ...current,
+      options: current.options.map((option, optionIndex) => (optionIndex === index ? value : option)),
+    }))
+  }
+
+  const keep = () => {
+    const validation = validateGeneratedCard(draft, sourcePages)
+    if (!validation.valid) {
+      setErrors(validation.errors)
+      return
+    }
+    onKeep(draft)
+  }
+
+  return (
+    <article className="review-card">
+      <div className="review-card-topline">
+        <span className="local-badge">LOCAL · WEBLLM</span>
+        <span>Evidence: p. {draft.sourcePage}</span>
+      </div>
+      <label className="field-label" htmlFor={`question-${draft.id}`}>Question</label>
+      <textarea id={`question-${draft.id}`} onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))} value={draft.question} />
+      <div className="option-list">
+        {draft.options.map((option, index) => (
+          <label className={index === draft.correctIndex ? 'option correct' : 'option'} key={`${draft.id}-${index}`}>
+            <input checked={index === draft.correctIndex} name={`correct-${draft.id}`} onChange={() => setDraft((current) => ({ ...current, correctIndex: index }))} type="radio" />
+            <span>{String.fromCharCode(65 + index)}</span>
+            <input aria-label={`Option ${index + 1}`} onChange={(event) => changeOption(index, event.target.value)} value={option} />
+          </label>
+        ))}
+      </div>
+      <div className="evidence-box">
+        <span>Source quote · p. {draft.sourcePage}</span>
+        <textarea aria-label="Source quote" onChange={(event) => setDraft((current) => ({ ...current, sourceQuote: event.target.value }))} value={draft.sourceQuote} />
+      </div>
+      {errors.length > 0 ? <p className="form-error">{errors.join(' ')}</p> : null}
+      <div className="review-actions">
+        <button className="secondary-button" onClick={onDiscard} type="button">Discard</button>
+        <button className="primary-button" onClick={keep} type="button">Keep card <span aria-hidden="true">→</span></button>
+      </div>
+    </article>
+  )
+}
+
+function ManualCardForm({
+  onCancel,
+  onSave,
+  sourcePages,
+}: {
+  onCancel: () => void
+  onSave: (card: GeneratedCard) => void
+  sourcePages: SourcePage[]
+}) {
+  const [question, setQuestion] = useState('')
+  const [options, setOptions] = useState(initialOptions)
+  const [correctIndex, setCorrectIndex] = useState(0)
+  const [sourcePage, setSourcePage] = useState(sourcePages[0]?.pageNumber ?? 1)
+  const [sourceQuote, setSourceQuote] = useState(firstSentence(sourcePages[0]?.text ?? ''))
+  const [errors, setErrors] = useState<string[]>([])
+
+  const changePage = (pageNumber: number) => {
+    setSourcePage(pageNumber)
+    setSourceQuote(firstSentence(sourcePages.find((page) => page.pageNumber === pageNumber)?.text ?? ''))
+  }
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const card: GeneratedCard = {
+      id: createLocalId('manual-card'),
+      question,
+      options,
+      correctIndex,
+      sourcePage,
+      sourceQuote,
+      sourceChunkId: `manual-page-${sourcePage}`,
+      generationMode: 'local-private',
+      generationMethod: 'manual',
+      createdAt: new Date().toISOString(),
+    }
+    const validation = validateGeneratedCard(card, sourcePages)
+    if (!validation.valid) {
+      setErrors(validation.errors)
+      return
+    }
+    onSave(card)
+  }
+
+  return (
+    <form className="manual-card-form" onSubmit={submit}>
+      <h3>Manual card</h3>
+      <label className="field-label" htmlFor="manual-question">Question</label>
+      <textarea id="manual-question" onChange={(event) => setQuestion(event.target.value)} placeholder="Write a question answered by the source…" value={question} />
+      <div className="manual-options">
+        {options.map((option, index) => (
+          <label key={`manual-option-${index}`}>
+            <input checked={correctIndex === index} name="manual-correct" onChange={() => setCorrectIndex(index)} type="radio" />
+            <span>{String.fromCharCode(65 + index)}</span>
+            <input aria-label={`Manual option ${index + 1}`} onChange={(event) => setOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Option ${index + 1}`} value={option} />
+          </label>
+        ))}
+      </div>
+      <div className="manual-source-fields">
+        <label className="field-label" htmlFor="manual-source-page">Cited page</label>
+        <select id="manual-source-page" onChange={(event) => changePage(Number(event.target.value))} value={sourcePage}>
+          {sourcePages.map((page) => <option key={page.id} value={page.pageNumber}>Page {page.pageNumber}</option>)}
+        </select>
+        <label className="field-label" htmlFor="manual-source-quote">Exact source quote</label>
+        <textarea id="manual-source-quote" onChange={(event) => setSourceQuote(event.target.value)} value={sourceQuote} />
+      </div>
+      {errors.length > 0 ? <p className="form-error">{errors.join(' ')}</p> : null}
+      <div className="review-actions">
+        <button className="secondary-button" onClick={onCancel} type="button">Cancel</button>
+        <button className="primary-button" type="submit">Save local card</button>
+      </div>
+    </form>
+  )
+}
+
+function KeptCard({ card }: { card: StoredCard }) {
+  return (
+    <article className="kept-card">
+      <span className="local-badge">{card.generationMethod === 'manual' ? 'MANUAL' : 'LOCAL AI'}</span>
+      <h3>{card.question}</h3>
+      <p>Correct answer: <strong>{card.options[card.correctIndex]}</strong></p>
+      <footer>p. {card.sourcePage} · “{card.sourceQuote}”</footer>
+    </article>
+  )
+}
+
+function StudySession({
+  cards,
+  onAttempt,
+  onBack,
+}: {
+  cards: StoredCard[]
+  onAttempt: (selectedIndex: number, isCorrect: boolean, cardId: string) => Promise<unknown>
+  onBack: () => void
+}) {
+  const [index, setIndex] = useState(0)
+  const [selected, setSelected] = useState<number>()
+  const [revealed, setRevealed] = useState(false)
+  const card = cards[index]
+
+  const next = () => {
+    setIndex((current) => (current + 1) % cards.length)
+    setSelected(undefined)
+    setRevealed(false)
+  }
+
+  const checkAnswer = () => {
+    if (selected === undefined) {
+      return
+    }
+
+    setRevealed(true)
+    void onAttempt(selected, selected === card.correctIndex, card.id)
+  }
+
+  return (
+    <section className="study-session">
+      <div className="study-header">
+        <div>
+          <div className="step-label">STUDY MODE</div>
+          <h2>Card {index + 1} of {cards.length}</h2>
+        </div>
+        <button className="secondary-button" onClick={onBack} type="button">Back to pantry</button>
+      </div>
+      <article className="study-card">
+        <h3>{card.question}</h3>
+        <div className="study-options">
+          {card.options.map((option, optionIndex) => {
+            const isCorrect = optionIndex === card.correctIndex
+            const className = revealed ? (isCorrect ? 'answer correct' : selected === optionIndex ? 'answer incorrect' : 'answer') : selected === optionIndex ? 'answer selected' : 'answer'
+            return (
+              <button className={className} key={`${card.id}-${optionIndex}`} onClick={() => !revealed && setSelected(optionIndex)} type="button">
+                <span>{String.fromCharCode(65 + optionIndex)}</span>{option}
+              </button>
+            )
+          })}
+        </div>
+        {revealed ? <p className="study-evidence">Source check · p. {card.sourcePage}: “{card.sourceQuote}”</p> : null}
+        <div className="study-actions">
+          {!revealed ? <button className="primary-button" disabled={selected === undefined} onClick={checkAnswer} type="button">Check answer</button> : <button className="primary-button" onClick={next} type="button">Next card <span aria-hidden="true">→</span></button>}
+        </div>
+      </article>
+    </section>
+  )
+}
+
+export default App
