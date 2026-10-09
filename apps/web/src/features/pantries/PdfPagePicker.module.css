@@ -18,6 +18,45 @@
   margin: 0;
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.viewToggle {
+  display: inline-flex;
+  padding: 3px;
+  border: 2px solid var(--color-neutral);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+.viewOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-neutral);
+  font: 700 14px / 1 var(--font-sans);
+  cursor: pointer;
+}
+
+.viewOption:hover {
+  background: var(--color-surface-muted);
+}
+
+.viewOption[aria-pressed='true'] {
+  background: var(--color-neutral);
+  color: var(--color-surface);
+}
+
 .filename {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -75,6 +114,62 @@
 
 .hiddenCanvas {
   visibility: hidden;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+}
+
+.gridCell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-2);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-neutral);
+  cursor: pointer;
+  text-align: left;
+}
+
+.gridCell:hover:not(:disabled) {
+  border-color: var(--color-neutral);
+}
+
+.gridCell:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.gridCell[aria-pressed='true'] {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-soft);
+  box-shadow: 0 0 0 2px var(--color-primary-hover);
+}
+
+.gridCell .preview {
+  flex: 1;
+}
+
+.gridLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font: 700 14px / 1.2 var(--font-sans);
+}
+
+.gridCell[aria-pressed='true'] .gridLabel {
+  color: var(--color-primary-hover);
 }
 
 .previewMessage {
@@ -144,5 +239,13 @@
   .arrow {
     width: 44px;
     height: 44px;
+  }
+
+  .grid {
+    gap: var(--space-2);
+  }
+
+  .gridCell {
+    padding: var(--space-1);
   }
 }
