@@ -1,0 +1,9 @@
+# macOS Finder / system artifacts
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# macOS custom folder icon (illegal filename on Windows)
+Icon
+Icon?
