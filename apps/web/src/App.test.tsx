@@ -94,7 +94,7 @@ describe('Traccoon Education', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Study 1 card' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Focus set' })).toBeInTheDocument()
-    expect(screen.getByText('STUDYING')).toBeInTheDocument()
+    expect(screen.getByText(/PRACTICE · 1 CARD/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete pantry' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Study 1 card' })).toBeNull()
 

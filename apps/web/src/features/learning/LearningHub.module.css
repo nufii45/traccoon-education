@@ -1,0 +1,177 @@
+/* Learning Hub, Practice picker. Tokens from themes.ts; 14px text and 44px targets minimum. */
+
+.hub {
+  display: grid;
+  gap: var(--space-8);
+  max-width: 880px;
+  padding-top: clamp(16px, 5vh, 64px);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-primary);
+  font: var(--font-weight-bold) var(--text-label) var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+}
+
+.modeCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: 160px;
+  padding: var(--space-6);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  color: var(--color-neutral);
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+}
+
+a.modeCard:hover {
+  border-color: var(--color-neutral);
+}
+
+.modeCard > svg {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--color-primary);
+}
+
+.unavailable {
+  background: var(--color-surface-muted);
+  box-shadow: none;
+}
+
+.modeIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-control);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+
+.unavailable .modeIcon {
+  background: var(--color-secondary);
+  color: var(--color-muted);
+}
+
+.modeBody {
+  display: grid;
+  flex: 1;
+  gap: var(--space-2);
+}
+
+.modeTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--font-weight-extrabold) var(--text-heading) / 1.2 var(--font-sans);
+}
+
+.modeCopy {
+  color: var(--color-copy);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+.modeMeta {
+  color: var(--color-muted);
+  font: var(--font-weight-bold) var(--text-label) / 1.4 var(--font-sans);
+}
+
+.soon {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-secondary);
+  color: var(--color-muted);
+  font: var(--font-weight-bold) var(--text-label) / 1.6 var(--font-sans);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-body);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+  min-height: var(--tap-target);
+  color: var(--color-copy);
+  font: var(--font-weight-bold) var(--text-label) var(--font-sans);
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--color-neutral);
+}
+
+.pantryList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pantryRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.pantryRow .modeTitle {
+  font-size: var(--text-lead);
+}
+
+.pantryRow a {
+  flex: none;
+  text-decoration: none;
+}
+
+@media (max-width: 599px) {
+  .modeCard {
+    min-height: 0;
+    padding: var(--space-4);
+  }
+
+  .pantryRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

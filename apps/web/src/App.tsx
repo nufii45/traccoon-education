@@ -15,7 +15,6 @@ import { ModelReadinessPanel } from './features/pantries/ModelReadinessPanel'
 import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
 import { PdfPagePicker } from './features/pantries/PdfPagePicker'
 import { ReviewCard } from './features/pantries/ReviewCard'
-import { StudySession } from './features/study/StudySession'
 import { summarizeAttempts, type AttemptSummary } from './features/study/attemptSummary'
 import {
   pantryRepository,
@@ -30,10 +29,16 @@ import {
   Delete02Icon,
   FileUploadIcon,
 } from '@hugeicons/core-free-icons'
-import { BrowserRouter, Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router'
-import { pantryPath, pantryStudyPath } from './app/navigation'
+import { BrowserRouter, matchPath, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router'
+import { pantryPath, practicePath, type PracticeRouteState } from './app/navigation'
 import { Sidebar } from './app/Sidebar'
 import { Icon } from './components/Icon/Icon'
+import { LearningHub } from './features/learning/LearningHub'
+import { PracticePicker } from './features/learning/PracticePicker'
+import { PracticeSession } from './features/learning/PracticeSession'
+import { PRACTICE_ROUND_SIZE, practiceRoundLength } from './features/learning/practiceRound'
+import { PantryNotFound } from './features/pantries/PantryNotFound'
+import { usePantry } from './features/pantries/usePantry'
 import { HomeDashboard } from './features/onboarding/HomeDashboard'
 import { OnboardingFlow } from './features/onboarding/OnboardingFlow'
 import { useOnboarding } from './features/onboarding/useOnboarding'
@@ -45,6 +50,12 @@ const MANUAL_PATH = '/pantries/manual'
 interface ImportRouteState {
   openFilePicker?: boolean
 }
+
+/** "Study 3 cards", or "Study 5 of 12 cards" when a Practice round covers only part of the pantry. */
+const studyButtonLabel = (cardCount: number) =>
+  cardCount > PRACTICE_ROUND_SIZE
+    ? `Study ${practiceRoundLength(cardCount)} of ${cardCount} cards`
+    : `Study ${cardCount} ${cardCount === 1 ? 'card' : 'cards'}`
 
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
 
@@ -64,10 +75,9 @@ function AppRoutes() {
   const [summaries, setSummaries] = useState<PantrySummary[]>([])
   const [error, setError] = useState<string>()
 
-  const pantryMatch = matchPath('/pantries/:pantryId', location.pathname) ?? matchPath('/pantries/:pantryId/study', location.pathname)
-  const routePantryId = pantryMatch?.params.pantryId
+  const routePantryId = matchPath('/pantries/:pantryId', location.pathname)?.params.pantryId
   const activePantryId = routePantryId === 'import' || routePantryId === 'manual' ? undefined : routePantryId
-  const isStudying = matchPath('/pantries/:pantryId/study', location.pathname) !== null
+  const isStudying = matchPath('/learn/practice/:pantryId', location.pathname) !== null
 
   const refreshPantries = async () => {
     setSummaries(await pantryRepository.listPantries())
@@ -152,46 +162,13 @@ function AppRoutes() {
             path={MANUAL_PATH}
           />
           <Route element={<PantryRoute onPantriesChange={refreshPantries} />} path="/pantries/:pantryId" />
-          <Route element={<PantryStudyRoute />} path="/pantries/:pantryId/study" />
+          <Route element={<LearningHub pantries={summaries} />} path="/learn" />
+          <Route element={<PracticePicker pantries={summaries} />} path="/learn/practice" />
+          <Route element={<PracticeSession />} path="/learn/practice/:pantryId" />
           <Route element={<Navigate replace to="/pantries" />} path="*" />
         </Routes>
       </main>
     </div>
-  )
-}
-
-/**
- * Loads one pantry for the current route. `undefined` while loading, `null`
- * when the id does not exist on this device.
- */
-function usePantry(pantryId: string) {
-  const [pantry, setPantry] = useState<Pantry | null>()
-
-  const reload = async () => {
-    setPantry((await pantryRepository.getPantry(pantryId)) ?? null)
-  }
-
-  useEffect(() => {
-    let isActive = true
-    setPantry(undefined)
-    pantryRepository.getPantry(pantryId).then((loaded) => {
-      if (isActive) setPantry(loaded ?? null)
-    })
-    return () => {
-      isActive = false
-    }
-  }, [pantryId])
-
-  return { pantry, reload }
-}
-
-function PantryNotFound() {
-  return (
-    <section className="workspace">
-      <h1>Pantry not found</h1>
-      <p className="hero-copy">This pantry is not stored in this browser. It may have been deleted.</p>
-      <Link className="secondary-button" to="/pantries">Back to My Pantries</Link>
-    </section>
   )
 }
 
@@ -215,41 +192,10 @@ function PantryRoute({ onPantriesChange }: { onPantriesChange: () => Promise<voi
         await reload()
         await onPantriesChange()
       }}
-      onStudy={() => navigate(pantryStudyPath(pantry.id))}
+      // The pantry's Study button is a shortcut into Learning Hub Practice.
+      onStudy={() => navigate(practicePath(pantry.id), { state: { from: 'pantry' } satisfies PracticeRouteState })}
       pantry={pantry}
     />
-  )
-}
-
-function PantryStudyRoute() {
-  const { pantryId = '' } = useParams()
-  const navigate = useNavigate()
-  const { pantry } = usePantry(pantryId)
-
-  if (pantry === undefined) return null
-  if (pantry === null) return <PantryNotFound />
-
-  return (
-    <section className="workspace">
-      <header className="workspace-header studying">
-        <div className="eyebrow"><span /> STUDYING</div>
-        <h1>{pantry.title}</h1>
-      </header>
-      <StudySession
-        cards={pantry.cards}
-        sourceName={pantry.sourceName}
-        sourcePages={pantry.sourcePages}
-        onAttempt={(selectedIndex, isCorrect, cardId) =>
-          pantryRepository.saveAttempt({
-            pantryId: pantry.id,
-            cardId,
-            selectedIndex,
-            isCorrect,
-          })
-        }
-        onBack={() => navigate(pantryPath(pantry.id))}
-      />
-    </section>
   )
 }
 
@@ -546,7 +492,7 @@ function PantryWorkspace({
           {attemptLoadError ? <p className="form-error" role="alert">Answer history could not be loaded from this device.</p> : null}
         </div>
         <div className="header-actions">
-          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} {pantry.cards.length === 1 ? 'card' : 'cards'}</button>
+          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">{studyButtonLabel(pantry.cards.length)}</button>
           <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button"><Icon icon={Delete02Icon} />Delete pantry</button>
         </div>
       </header>

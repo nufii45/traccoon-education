@@ -33,7 +33,8 @@ describe('navigation and URLs', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' })
 
     expect(within(nav).getByRole('link', { name: 'My Pantries' })).toHaveAttribute('aria-current', 'page')
-    for (const label of ['Learning Hub', 'Treat Shelf', 'Rokki']) {
+    expect(within(nav).getByRole('link', { name: 'Learning Hub' })).not.toHaveAttribute('aria-current')
+    for (const label of ['Treat Shelf', 'Rokki']) {
       const item = within(nav).getByText(label).closest('.nav-link')
       expect(item).toHaveAttribute('aria-disabled', 'true')
       expect(item).toHaveTextContent('Soon')
@@ -54,7 +55,7 @@ describe('navigation and URLs', () => {
     expect(within(sidebar).getByRole('button', { name: /Collapsible set/ })).toBeVisible()
   })
 
-  it('gives each pantry and its study session a real URL with the id, not the title', async () => {
+  it('gives each pantry and its Practice shortcut a real URL with the id, not the title', async () => {
     const pantry = await createPantryWithCard('Routed set')
     render(<App />)
 
@@ -64,8 +65,8 @@ describe('navigation and URLs', () => {
     expect(window.location.pathname).toBe(`/pantries/${pantry.id}`)
 
     fireEvent.click(screen.getByRole('button', { name: 'Study 1 card' }))
-    expect(await screen.findByText('STUDYING')).toBeInTheDocument()
-    expect(window.location.pathname).toBe(`/pantries/${pantry.id}/study`)
+    expect(await screen.findByText(/PRACTICE · 1 CARD/)).toBeInTheDocument()
+    expect(window.location.pathname).toBe(`/learn/practice/${pantry.id}`)
   })
 
   it('opens a pantry directly from its URL, as after a reload', async () => {
