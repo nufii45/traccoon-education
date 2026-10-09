@@ -1,0 +1,3 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800;900&display=swap');
+html, body, #root { min-height: 100%; width: 100%; padding: 0; margin: 0; }
+body { background: #110F10; }

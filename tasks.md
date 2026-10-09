@@ -96,7 +96,7 @@ type GeneratedCard = {
   Spec ref: `Traccoon_Education_Hackathon_MVP_PRD.md > 6. FR-04 to FR-06; 7. Local model approach`
   Depends on: Task 1 selects the runtime. Task 4 defines source-page persistence.
   What to build: Load a local PDF from an `ArrayBuffer`, extract text per page in the browser, classify pages as usable or unavailable, and split selected pages into bounded chunks containing page number, text, and a stable chunk ID. Limit selection to three usable pages. Keep model generation in a dedicated worker.
-  Acceptance: The pipeline reads a text-based PDF without uploading it, reports unavailable pages clearly, and emits no chunks from unselected pages.
+  Acceptance: The pipeline reads a text-based PDF without uploading it, gives a reason for unavailable pages, and emits no chunks from unselected pages.
   Verify: Add tests using one text-based and one image-only PDF fixture. Inspect browser network activity during import.
   Handoff: Export `SourcePage` and `SourceChunk` types plus the local extraction function for Members 2 and 3.
 

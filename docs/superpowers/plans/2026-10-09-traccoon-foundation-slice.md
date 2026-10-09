@@ -440,7 +440,7 @@ Configure Playwright to start the API, web app, PostgreSQL, and MinIO test servi
 
 Add `@playwright/test` at the workspace root and define `test:e2e` as `playwright test`; CI installs browser dependencies in its Playwright job before running the suite.
 
-Write the root README and development guide with prerequisites, `docker compose up`, environment setup, migration, test commands, fixture-generator limitation, offline behavior, asset provenance, and the fact that companion progression is intentionally non-interactive in this slice. Add CI steps for install, lint, typecheck, unit/integration tests, web/API builds, and Playwright.
+Write the root README and development guide with prerequisites, `docker compose up`, environment setup, migration, test commands, fixture-generator limitation, offline behavior, asset provenance, and a note that companion progression is intentionally non-interactive in this slice. Add CI steps for install, lint, typecheck, unit/integration tests, web/API builds, and Playwright.
 
 - [ ] **Step 4: Run the final verification suite**
 

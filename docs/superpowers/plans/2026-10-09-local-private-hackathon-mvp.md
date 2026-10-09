@@ -35,8 +35,7 @@ service.
   option; source page; source quote; source chunk ID; and `local-private` mode.
 - A card is reviewable only when its quote occurs in the locally extracted text
   for its cited source page.
-- PDF support is text-layer only. The UI says this clearly rather than claiming
-  OCR support.
+- PDF support is text-layer only. The UI states that OCR is unavailable.
 
 ## Work sequence
 

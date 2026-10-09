@@ -1,0 +1,12 @@
+/* Supplied palette. Surface shades are derived extensions for the dark website. */
+:root {
+  --tc-brown: #8D6748;
+  --tc-cream: #F5EFEB;
+  --tc-gold: #E5A93C;
+  --tc-charcoal: #2B2625;
+  --tc-dark: #110F10;
+  --tc-dark-raised: #191618;
+  --tc-muted: #ABA3A1;
+  --tc-stroke: rgba(245, 239, 235, .16);
+  --tc-font: 'Nunito Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}

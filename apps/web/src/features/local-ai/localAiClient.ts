@@ -4,6 +4,7 @@ import {
   LOCAL_CARD_RESPONSE_SCHEMA,
 } from './localGenerator'
 import { MAX_CARDS_PER_RUN, MAX_REGENERATION_RETRIES } from './policy'
+import { loadWebLlm } from './webLlmRuntime'
 import type {
   CardRejectionReason,
   GeneratedCard,
@@ -13,7 +14,7 @@ import type {
 } from './types'
 import type { ChatCompletion, ChatCompletionRequestNonStreaming, WebWorkerMLCEngine } from '@mlc-ai/web-llm'
 
-export const LOCAL_MODEL_ID = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC'
+export const LOCAL_MODEL_ID = 'Qwen3.5-4B-q4f16_1-MLC'
 
 export type LocalAiStatus =
   | { stage: 'idle'; detail: string }
@@ -87,23 +88,57 @@ const throwIfCancelled = (signal?: AbortSignal) => {
   }
 }
 
-const loadEngine = async (onStatus?: (status: LocalAiStatus) => void) => {
+const awaitWithCancellation = <Value>(operation: Promise<Value>, signal?: AbortSignal): Promise<Value> => {
+  throwIfCancelled(signal)
+
+  if (!signal) {
+    return operation
+  }
+
+  return new Promise<Value>((resolve, reject) => {
+    const cancel = () => {
+      cleanup()
+      reject(new LocalGenerationCancelledError())
+    }
+    const cleanup = () => signal.removeEventListener('abort', cancel)
+
+    signal.addEventListener('abort', cancel, { once: true })
+    void operation.then(
+      (value) => {
+        cleanup()
+        resolve(value)
+      },
+      (error: unknown) => {
+        cleanup()
+        reject(error)
+      },
+    )
+  })
+}
+
+const loadEngine = async (onStatus?: (status: LocalAiStatus) => void, signal?: AbortSignal) => {
   if (engine) {
     return engine
   }
 
   onStatus?.({ stage: 'downloading', detail: `Preparing ${LOCAL_MODEL_ID} on this device…`, progress: 0 })
-  const webllm = await import('@mlc-ai/web-llm')
+  const webllm = await awaitWithCancellation(loadWebLlm(), signal)
+  throwIfCancelled(signal)
   worker ??= new Worker(new URL('../../workers/localAi.worker.ts', import.meta.url), { type: 'module' })
-  engine = await webllm.CreateWebWorkerMLCEngine(worker, LOCAL_MODEL_ID, {
-    initProgressCallback: (report) => {
-      onStatus?.({
-        stage: 'downloading',
-        detail: report.text,
-        progress: Math.round(report.progress * 100),
-      })
-    },
-  })
+  const loadedEngine = await awaitWithCancellation(
+    webllm.CreateWebWorkerMLCEngine(worker, LOCAL_MODEL_ID, {
+      initProgressCallback: (report) => {
+        onStatus?.({
+          stage: 'downloading',
+          detail: report.text,
+          progress: Math.round(report.progress * 100),
+        })
+      },
+    }),
+    signal,
+  )
+  throwIfCancelled(signal)
+  engine = loadedEngine
   onStatus?.({ stage: 'ready', detail: `${LOCAL_MODEL_ID} is ready on this device.` })
   return engine
 }
@@ -154,7 +189,7 @@ export const generateCardsLocally = async (
       throw error
     }
 
-    const activeEngine = await loadEngine(request.onStatus)
+    const activeEngine = await loadEngine(request.onStatus, request.signal)
     throwIfCancelled(request.signal)
     const diagnostics: GenerationDiagnostics = { responses: 0, candidates: 0, reasons: {} }
     for (let attempt = 0; attempt <= MAX_REGENERATION_RETRIES; attempt += 1) {
@@ -164,20 +199,23 @@ export const generateCardsLocally = async (
           ? 'Generating cards locally in your browser…'
           : `Checking another local response (${attempt + 1} of ${MAX_REGENERATION_RETRIES + 1})…`,
       })
-      const completion = await createCompletion(
-        activeEngine,
-        {
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You create precise study cards using only the provided source text and return valid JSON.',
-            },
-            { role: 'user', content: buildLocalGenerationPrompt(request.chunks, requestedCount) },
-          ],
-          temperature: 0.15,
-          max_tokens: 1_200,
-        },
+      const completion = await awaitWithCancellation(
+        createCompletion(
+          activeEngine,
+          {
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You create precise study cards using only the provided source text and return valid JSON.',
+              },
+              { role: 'user', content: buildLocalGenerationPrompt(request.chunks, requestedCount) },
+            ],
+            temperature: 0.15,
+            max_tokens: 1_200,
+          },
+          request.signal,
+        ),
         request.signal,
       )
       throwIfCancelled(request.signal)

@@ -1,0 +1,8 @@
+.tc-rokki { display: inline-block; position: relative; aspect-ratio: 1 / 1; max-width: 100%; isolation: isolate; pointer-events: none; }
+.tc-rokki img { display: block; width: 100%; height: 100%; object-fit: contain; user-select: none; }
+.tc-rokki--float { animation: tc-rokki-float 6s ease-in-out infinite; }
+.tc-rokki--gentle { animation: tc-rokki-float 8s ease-in-out infinite; }
+@keyframes tc-rokki-float { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, -11px, 0); } }
+@media (prefers-reduced-motion: reduce) {
+ .tc-rokki--float, .tc-rokki--gentle { animation: none; }
+}
