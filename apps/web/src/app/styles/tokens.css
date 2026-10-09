@@ -43,8 +43,9 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-12: 48px;
+  /* All spacing and radii sit on a 4px grid. */
 
-  --radius-sm: 6px;
+  --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-full: 999px;

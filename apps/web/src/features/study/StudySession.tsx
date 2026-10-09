@@ -1,4 +1,15 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
+import {
+  ArrowLeft01Icon,
+  ArrowRight02Icon,
+  Cancel01Icon,
+  CancelCircleIcon,
+  CheckmarkCircle02Icon,
+  FileSearchIcon,
+  RepeatIcon,
+  Tick02Icon,
+} from '@hugeicons/core-free-icons'
+import { Icon } from '../../components/Icon/Icon'
 import type { SourcePage } from '../local-ai/types'
 import type { StoredCard } from '../pantries/repository'
 import { SourceView } from './SourceView'
@@ -93,7 +104,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
             <div className="step-label">SESSION COMPLETE</div>
             <h2 id="study-summary-heading" ref={summaryRef} tabIndex={-1}>{score.correct} of {score.answered} correct</h2>
           </div>
-          <button className="secondary-button" onClick={onBack} type="button">Back to pantry</button>
+          <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />Back to pantry</button>
         </div>
         {missed.length > 0 ? (
           <div className={styles.missed}>
@@ -108,7 +119,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
                     </p>
                   </div>
                   <button className={`text-button ${styles.tapTarget}`} onClick={() => setSourceCard(missedCard)} type="button">
-                    See source · p.{missedCard.sourcePage}
+                    <Icon icon={FileSearchIcon} size={16} />See source · p.{missedCard.sourcePage}
                   </button>
                 </li>
               ))}
@@ -120,7 +131,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
         <div className="study-actions">
           {missed.length > 0 ? (
             <button className={`primary-button ${styles.tapTarget}`} onClick={() => restart(missed)} type="button">
-              Study {missed.length} missed {missed.length === 1 ? 'card' : 'cards'}
+              <Icon icon={RepeatIcon} />Study {missed.length} missed {missed.length === 1 ? 'card' : 'cards'}
             </button>
           ) : null}
           <button className={`secondary-button ${styles.tapTarget}`} onClick={() => restart(cards)} type="button">Study all again</button>
@@ -141,7 +152,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
           <div className="step-label">STUDY MODE</div>
           <h2 id="study-card-heading">Card {state.position + 1} of {state.cards.length}</h2>
         </div>
-        <button className="secondary-button" onClick={onBack} type="button">Back to pantry</button>
+        <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />Back to pantry</button>
       </div>
       <div
         aria-label="Session progress"
@@ -177,8 +188,8 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
               >
                 <span>{letter(optionIndex)}</span>
                 {option}
-                {result && isCorrect ? <em className={styles.answerTag}>Correct answer</em> : null}
-                {result && isPicked && !isCorrect ? <em className={styles.answerTag}>Your answer</em> : null}
+                {result && isCorrect ? <em className={styles.answerTag}><Icon icon={Tick02Icon} size={16} />Correct answer</em> : null}
+                {result && isPicked && !isCorrect ? <em className={styles.answerTag}><Icon icon={Cancel01Icon} size={16} />Your answer</em> : null}
               </button>
             )
           })}
@@ -186,7 +197,10 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
         <div aria-live="polite" className={styles.feedbackRegion}>
           {result ? (
             <div className={result.isCorrect ? styles.feedbackCorrect : styles.feedbackWrong}>
-              <p className={styles.feedbackTitle}>{result.isCorrect ? 'Correct.' : 'Not quite.'}</p>
+              <p className={styles.feedbackTitle}>
+                <Icon icon={result.isCorrect ? CheckmarkCircle02Icon : CancelCircleIcon} size={24} />
+                {result.isCorrect ? 'Correct.' : 'Not quite.'}
+              </p>
               {result.isCorrect ? null : (
                 <p>The answer is {letter(card.correctIndex)}, {card.options[card.correctIndex]}.</p>
               )}
@@ -197,10 +211,10 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
           {result ? (
             <>
               <button className={`secondary-button ${styles.tapTarget}`} onClick={() => setSourceCard(card)} type="button">
-                See source · p.{card.sourcePage}
+                <Icon icon={FileSearchIcon} />See source · p.{card.sourcePage}
               </button>
               <button className={`primary-button ${styles.tapTarget}`} onClick={continueSession} ref={nextButtonRef} type="button">
-                {state.position + 1 === state.cards.length ? 'See results' : 'Next card'} <span aria-hidden="true">→</span>
+                {state.position + 1 === state.cards.length ? 'See results' : 'Next card'} <Icon icon={ArrowRight02Icon} />
               </button>
             </>
           ) : (

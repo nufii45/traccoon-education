@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, type MouseEvent, type ReactNode, type SyntheticEvent } from 'react'
+import { Cancel01Icon } from '@hugeicons/core-free-icons'
+import { Icon } from '../Icon/Icon'
 import styles from './Dialog.module.css'
 
 export type DialogVariant = 'modal' | 'drawer'
@@ -66,9 +68,7 @@ export function Dialog({ isOpen, onClose, title, eyebrow, variant = 'modal', foo
             <h2 className={styles.title} id={titleId}>{title}</h2>
           </div>
           <button aria-label="Close" className={styles.close} onClick={onClose} type="button">
-            <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 24 24" width="18">
-              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
-            </svg>
+            <Icon icon={Cancel01Icon} />
           </button>
         </header>
         <div className={styles.body}>{children}</div>
