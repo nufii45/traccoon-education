@@ -1,0 +1,84 @@
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-secondary);
+}
+
+.rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) 1fr;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.row dt {
+  color: var(--color-muted);
+  font: var(--font-weight-bold) var(--text-label) / 1.5 var(--font-sans);
+}
+
+.row dd {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-neutral);
+  font-size: var(--text-label);
+  line-height: 1.5;
+}
+
+.row dd > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.modelId {
+  font: var(--font-weight-semibold) var(--text-label) / 1.5 var(--mono);
+  overflow-wrap: anywhere;
+}
+
+.ok > svg {
+  color: var(--color-success);
+}
+
+.info > svg {
+  color: var(--color-primary);
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+.pending {
+  color: var(--color-copy);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-neutral);
+  font: var(--font-weight-bold) var(--text-label) var(--font-sans);
+}
+
+.progress progress {
+  flex: 1;
+  height: 8px;
+  accent-color: var(--color-primary);
+}
+
+@media (max-width: 599px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
