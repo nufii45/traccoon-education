@@ -391,4 +391,28 @@ describe('LocalPantryRepository', () => {
       { id: sourcePages[0].id, pageNumber: sourcePages[0].pageNumber, text: sourcePages[0].text },
     ])
   })
+
+  it('round-trips isEdited and omits the key when it is not set', async () => {
+    const name = newDatabaseName()
+    const repository = openRepository(name)
+    const pantry = await repository.save({
+      ...pantryInput('Edited cards'),
+      cards: [
+        { ...cardWith({ id: 'edited-card' }), isEdited: true },
+        cardWith({ id: 'plain-card' }),
+      ],
+    })
+
+    const loaded = await repository.getPantry(pantry.id)
+    const editedCard = loaded?.cards.find((stored) => stored.id === 'edited-card')
+    const plainCard = loaded?.cards.find((stored) => stored.id === 'plain-card')
+    expect(editedCard?.isEdited).toBe(true)
+    expect(plainCard?.isEdited).toBeUndefined()
+
+    const storedCards = await readStore<StoredCard>(name, 'pantryCards')
+    const storedEdited = storedCards.find((stored) => stored.id === 'edited-card')
+    const storedPlain = storedCards.find((stored) => stored.id === 'plain-card')
+    expect(storedEdited?.isEdited).toBe(true)
+    expect(storedPlain && 'isEdited' in storedPlain).toBe(false)
+  })
 })

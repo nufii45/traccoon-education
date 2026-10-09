@@ -10,7 +10,16 @@ interface PantryRecord {
   updatedAt: string
 }
 
-export interface StoredCard extends GeneratedCard {
+/**
+ * A card queued for saving. Extends {@link GeneratedCard} with an optional
+ * `isEdited` flag set when a learner has manually edited the card. Plain
+ * `GeneratedCard` values stay assignable because `isEdited` is optional.
+ */
+export interface CardToSave extends GeneratedCard {
+  isEdited?: boolean
+}
+
+export interface StoredCard extends CardToSave {
   pantryId: string
 }
 
@@ -58,8 +67,8 @@ export interface CreatePantryInput {
  * - With `id`: upsert `cards` into that existing pantry.
  */
 export type SavePantryInput =
-  | (CreatePantryInput & { id?: undefined; cards?: GeneratedCard[] })
-  | { id: string; cards: GeneratedCard[] }
+  | (CreatePantryInput & { id?: undefined; cards?: CardToSave[] })
+  | { id: string; cards: CardToSave[] }
 
 export class PantryNotFoundError extends Error {
   constructor() {
@@ -93,7 +102,7 @@ const toPageRecord = (page: SourcePage): SourcePage => ({
   text: page.text,
 })
 
-const toStoredCard = (pantryId: string, card: GeneratedCard): StoredCard => {
+const toStoredCard = (pantryId: string, card: CardToSave): StoredCard => {
   const stored: StoredCard = {
     id: card.id,
     question: card.question,
@@ -109,6 +118,10 @@ const toStoredCard = (pantryId: string, card: GeneratedCard): StoredCard => {
 
   if (card.generationMethod !== undefined) {
     stored.generationMethod = card.generationMethod
+  }
+
+  if (card.isEdited !== undefined) {
+    stored.isEdited = card.isEdited
   }
 
   return stored
@@ -304,7 +317,7 @@ export class LocalPantryRepository {
   }
 
   /** Upsert cards into a pantry. Same as {@link save} with `id`. */
-  async saveCards(pantryId: string, cards: GeneratedCard[]): Promise<void> {
+  async saveCards(pantryId: string, cards: CardToSave[]): Promise<void> {
     await this.save({ id: pantryId, cards })
   }
 
@@ -339,7 +352,7 @@ export class LocalPantryRepository {
    * or {@link CardNotFoundError} when the pantry, or the card within it, is
    * missing.
    */
-  async updateCard(pantryId: string, card: GeneratedCard): Promise<void> {
+  async updateCard(pantryId: string, card: CardToSave): Promise<void> {
     await this.db.transaction('rw', this.db.pantries, this.db.pantryCards, async () => {
       await this.requirePantry(pantryId)
       await this.requireCard(pantryId, card.id)
