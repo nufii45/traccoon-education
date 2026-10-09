@@ -18,6 +18,8 @@ export type RokkiState = 'idle' | 'greeting' | 'thinking' | 'celebrating'
 export interface InteractiveRokkiProps {
   /** The Rokki illustration to show (an imported image URL). */
   src: string
+  /** Existing static artwork shown if the primary image cannot load. */
+  fallbackSrc?: string
   /** Accessible description of the illustration itself. */
   imageAlt: string
   /**
@@ -35,6 +37,8 @@ export interface InteractiveRokkiProps {
   actionLabel?: string
   /** Optional click/tap handler, in addition to the built-in playful reaction. */
   onActivate?: () => void
+  /** Optional page-specific greetings; defaults to Rokki's general messages. */
+  messages?: readonly string[]
   /** Pixel width of the mascot; height scales automatically. Default 200. */
   width?: number
   className?: string
@@ -42,7 +46,8 @@ export interface InteractiveRokkiProps {
 }
 
 const MAX_TILT_DEGREES = 6
-const REACTION_MS = 1600
+const REACTION_MS = 4000
+const REACTION_MOTION_MS = 900
 const GREETING_MS = 1200
 
 /**
@@ -55,11 +60,13 @@ const GREETING_MS = 1200
  */
 export function InteractiveRokki({
   src,
+  fallbackSrc,
   imageAlt,
   state = 'idle',
   interactive = true,
   actionLabel,
   onActivate,
+  messages,
   width = 200,
   className,
   style,
@@ -70,9 +77,12 @@ export function InteractiveRokki({
   const [tilt, setTilt] = useState(0)
   const [isHovering, setIsHovering] = useState(false)
   const [reaction, setReaction] = useState<string | null>(null)
+  const [isReacting, setIsReacting] = useState(false)
   const [showGreeting, setShowGreeting] = useState(false)
+  const [imageFailed, setImageFailed] = useState(false)
 
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reactionMotionTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const greetingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastMessage = useRef<string | undefined>(undefined)
   const hasGreeted = useRef(false)
@@ -91,6 +101,7 @@ export function InteractiveRokki({
   useEffect(() => {
     return () => {
       if (reactionTimer.current) clearTimeout(reactionTimer.current)
+      if (reactionMotionTimer.current) clearTimeout(reactionMotionTimer.current)
       if (greetingTimer.current) clearTimeout(greetingTimer.current)
     }
   }, [])
@@ -125,11 +136,13 @@ export function InteractiveRokki({
   const react = useCallback(() => {
     onActivate?.()
     if (reaction !== null) return
-    const message = pickMessage(lastMessage.current)
+    const message = pickMessage(lastMessage.current, Math.random, messages)
     lastMessage.current = message
     setReaction(message)
+    setIsReacting(true)
+    reactionMotionTimer.current = setTimeout(() => setIsReacting(false), REACTION_MOTION_MS)
     reactionTimer.current = setTimeout(() => setReaction(null), REACTION_MS)
-  }, [onActivate, reaction])
+  }, [onActivate, reaction, messages])
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
@@ -161,7 +174,8 @@ export function InteractiveRokki({
       alt={imageAlt}
       className={styles.image}
       draggable={false}
-      src={src}
+      onError={() => { if (fallbackSrc && !imageFailed) setImageFailed(true) }}
+      src={imageFailed && fallbackSrc ? fallbackSrc : src}
       // Reserve space so entrance/scale never shifts surrounding layout.
       style={{ width: '100%', height: 'auto' }}
     />
@@ -173,6 +187,7 @@ export function InteractiveRokki({
       data-animate={animateIdle ? 'true' : 'false'}
       data-entered={hasEntered ? 'true' : 'false'}
       data-reduced={reducedMotion ? 'true' : 'false'}
+      data-reacting={isReacting ? 'true' : 'false'}
       data-state={resolvedState}
       ref={ref}
       style={figureStyle}

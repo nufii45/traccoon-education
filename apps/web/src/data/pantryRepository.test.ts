@@ -636,6 +636,12 @@ describe('LocalPantryRepository completed Quiz sessions', () => {
     const reopened = openRepository(name)
     const restored = await reopened.loadQuizSession('quiz-session-1')
     expect(restored).toEqual(completed)
+    await expect(reopened.listQuizSessionSummaries()).resolves.toEqual([{
+      id: 'quiz-session-1',
+      completedAt: completed.completedAt,
+      answered: 3,
+      correct: 2,
+    }])
     expect(restored?.cards[0].question).toBe('What does the mitochondrion release from food?')
     expect(totalIngredients(await reopened.loadTreatEconomy())).toBe(2)
   })

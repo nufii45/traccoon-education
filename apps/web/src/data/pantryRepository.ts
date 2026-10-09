@@ -100,6 +100,14 @@ export interface CompletedQuizSession extends Omit<QuizSessionRecord, 'attemptId
   awardedIngredients: IngredientId[]
 }
 
+/** Small read-only summary for companion views; no card or source text leaves storage. */
+export interface QuizSessionSummary {
+  id: string
+  completedAt: string
+  answered: number
+  correct: number
+}
+
 interface TreatEconomyRecord {
   key: 'current'
   value: TreatEconomy
@@ -542,6 +550,22 @@ export class LocalPantryRepository {
     return this.db.transaction('r', [this.db.quizSessions, this.db.attempts, this.db.treatEconomy], async () => {
       const record = await this.db.quizSessions.get(id)
       return record ? this.readCompletedQuizSession(record) : undefined
+    })
+  }
+
+  /** Completed rounds only; abandoned Quiz attempts do not count as sessions. */
+  listQuizSessionSummaries(): Promise<QuizSessionSummary[]> {
+    return this.db.transaction('r', [this.db.quizSessions, this.db.attempts], async () => {
+      const sessions = await this.db.quizSessions.orderBy('completedAt').reverse().toArray()
+      return Promise.all(sessions.map(async (session) => {
+        const attempts = await this.db.attempts.bulkGet(session.attemptIds)
+        return {
+          id: session.id,
+          completedAt: session.completedAt,
+          answered: attempts.filter((attempt) => attempt !== undefined).length,
+          correct: attempts.filter((attempt) => attempt?.isCorrect === true).length,
+        }
+      }))
     })
   }
 

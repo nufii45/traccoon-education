@@ -13,14 +13,13 @@ export interface NavItem {
 }
 
 /**
- * The four primary destinations. Rokki is Member 1's page: flip `isAvailable`
- * and add its route in App.tsx when it lands.
+ * The four primary destinations.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'learn', label: 'Learning Hub', to: '/learn', icon: Mortarboard02Icon, isAvailable: true },
   { id: 'pantries', label: 'My Pantries', to: '/pantries', icon: FolderLibraryIcon, isAvailable: true },
   { id: 'treats', label: 'Treat Shelf', to: TREATS_PATH, icon: CookieIcon, isAvailable: true },
-  { id: 'rokki', label: 'Rokki', to: '/rokki', icon: SmileIcon, isAvailable: false },
+  { id: 'rokki', label: 'Rokki', to: '/rokki', icon: SmileIcon, isAvailable: true },
 ]
 
 /** `/` renders My Pantries, so it counts as the pantries area. */
