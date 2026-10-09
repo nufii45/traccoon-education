@@ -24,7 +24,7 @@ const makeSource = () => {
 }
 
 const nextPage = () => fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
-const selectPage = (number: number) => fireEvent.click(screen.getByRole('button', { name: `Select page ${number}`, exact: true }))
+const selectPage = (number: number) => fireEvent.click(screen.getByRole('button', { name: `Select page ${number}` }))
 
 describe('PDF page picker', () => {
   it('renders actual PDF pages to a bounded canvas and stops at the first and last page', async () => {
@@ -57,7 +57,7 @@ describe('PDF page picker', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
     fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
     fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
-    expect(screen.getByRole('button', { name: 'Select page 1', exact: true })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Select page 1' })).toBeDisabled()
     nextPage()
     fireEvent.click(screen.getByRole('button', { name: 'Page 2 selected' }))
     fireEvent.click(screen.getByRole('button', { name: 'Previous page' }))
@@ -84,7 +84,7 @@ describe('PDF page picker', () => {
     rerender(<PdfPagePicker {...props} isOpen />)
     expect(screen.getByRole('button', { name: 'Page 2 selected' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Pages 2')).toBeVisible()
-    fireEvent.cancel(screen.getByRole('dialog'))
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
     expect(onClose).toHaveBeenCalledTimes(2)
     fireEvent.click(screen.getByRole('dialog'))
     expect(onClose).toHaveBeenCalledTimes(3)
