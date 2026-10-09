@@ -17,9 +17,9 @@ export default defineConfig({
         display: 'standalone',
       },
       workbox: {
-        // Default globs skip .mjs, .svg and .woff2, which left the PDF.js worker,
-        // icons and bundled fonts out of the offline cache.
-        globPatterns: ['**/*.{js,mjs,css,html,svg,woff2}'],
+        // Default globs skip .mjs, .svg, .woff2 and .webp, which left the PDF.js
+        // worker, icons, bundled fonts, Rokki art and treat art out of the offline cache.
+        globPatterns: ['**/*.{js,mjs,css,html,svg,woff2,webp}'],
         maximumFileSizeToCacheInBytes: 9 * 1024 * 1024,
       },
     }),

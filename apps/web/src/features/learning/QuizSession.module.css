@@ -1,0 +1,26 @@
+/* Quiz end-of-round ingredients. Tokens from themes.ts. */
+
+.found {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-warning-surface);
+}
+
+.foundHeading {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+
+.foundList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

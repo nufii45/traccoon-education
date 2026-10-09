@@ -28,17 +28,16 @@ describe('navigation and URLs', () => {
     window.history.replaceState(null, '', '/')
   })
 
-  it('shows four destinations with My Pantries active and unbuilt ones marked Soon', async () => {
+  it('shows four destinations with My Pantries active and Rokki marked Soon', async () => {
     render(<App />)
     const nav = screen.getByRole('navigation', { name: 'Main' })
 
     expect(within(nav).getByRole('link', { name: 'My Pantries' })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).getByRole('link', { name: 'Learning Hub' })).not.toHaveAttribute('aria-current')
-    for (const label of ['Treat Shelf', 'Rokki']) {
-      const item = within(nav).getByText(label).closest('.nav-link')
-      expect(item).toHaveAttribute('aria-disabled', 'true')
-      expect(item).toHaveTextContent('Soon')
-    }
+    expect(within(nav).getByRole('link', { name: 'Treat Shelf' })).toHaveAttribute('href', '/treats')
+    const rokki = within(nav).getByText('Rokki').closest('.nav-link')
+    expect(rokki).toHaveAttribute('aria-disabled', 'true')
+    expect(rokki).toHaveTextContent('Soon')
   })
 
   it('collapses and expands the nested pantry list', async () => {

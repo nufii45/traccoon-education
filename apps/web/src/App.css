@@ -792,6 +792,15 @@ select:focus-visible {
   line-height: 1.6;
 }
 
+.generation-loader {
+  display: grid;
+  place-items: center;
+  padding: var(--space-8) var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
 .candidate-stack {
   display: grid;
   gap: var(--space-4);

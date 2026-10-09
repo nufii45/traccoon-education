@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import {
   ArrowLeft01Icon,
   ArrowRight02Icon,
@@ -32,6 +32,12 @@ interface StudySessionProps {
   onBack: () => void
   /** Label for the exit button; Practice from the Learning Hub returns there instead. */
   backLabel?: string
+  /** Heading label above the card counter. */
+  modeLabel?: string
+  /** Shown under the answer feedback, e.g. the Quiz ingredient reward for this answer. */
+  feedbackSlot?: ReactNode
+  /** Shown on the end screen under the score. */
+  summarySlot?: ReactNode
 }
 
 const letter = (index: number) => String.fromCharCode(65 + index)
@@ -40,7 +46,17 @@ const letter = (index: number) => String.fromCharCode(65 + index)
  * One card at a time with immediate feedback, a source view for every card,
  * and an end screen listing missed cards. Attempts are saved locally.
  */
-export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack, backLabel = 'Back to pantry' }: StudySessionProps) {
+export function StudySession({
+  cards,
+  sourcePages,
+  sourceName,
+  onAttempt,
+  onBack,
+  backLabel = 'Back to pantry',
+  modeLabel = 'STUDY MODE',
+  feedbackSlot,
+  summarySlot,
+}: StudySessionProps) {
   const [state, dispatch] = useReducer(studyReducer, cards, createStudySession)
   const [selected, setSelected] = useState<number>()
   const [sourceCard, setSourceCard] = useState<StoredCard>()
@@ -109,6 +125,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
           </div>
           <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />{backLabel}</button>
         </div>
+        {summarySlot}
         {missed.length > 0 ? (
           <div className={styles.missed}>
             <h3 className={styles.missedHeading}>Missed cards</h3>
@@ -154,7 +171,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
     <section className="study-session" aria-labelledby="study-card-heading">
       <div className="study-header">
         <div>
-          <div className="step-label">STUDY MODE</div>
+          <div className="step-label">{modeLabel}</div>
           <h2 id="study-card-heading">Card {state.position + 1} of {state.cards.length}</h2>
         </div>
         <button className="secondary-button" onClick={onBack} type="button"><Icon icon={ArrowLeft01Icon} />{backLabel}</button>
@@ -213,6 +230,7 @@ export function StudySession({ cards, sourcePages, sourceName, onAttempt, onBack
             </div>
           ) : null}
         </div>
+        {result ? feedbackSlot : null}
         <div className="study-actions">
           {result ? (
             <>

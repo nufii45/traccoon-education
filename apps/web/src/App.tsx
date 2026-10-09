@@ -10,6 +10,7 @@ import {
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
 import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
+import { GenerationLoader } from './features/pantries/GenerationLoader'
 import { GenerationProgress } from './features/pantries/GenerationProgress'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
 import { ModelReadinessPanel } from './features/pantries/ModelReadinessPanel'
@@ -31,18 +32,22 @@ import {
   FileUploadIcon,
 } from '@hugeicons/core-free-icons'
 import { BrowserRouter, matchPath, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router'
-import { pantryPath, practicePath, type PracticeRouteState } from './app/navigation'
+import { pantryPath, practicePath, TREATS_PATH, type PracticeRouteState } from './app/navigation'
 import { Sidebar } from './app/Sidebar'
 import { Icon } from './components/Icon/Icon'
+import { RokkiLoader } from './components/RokkiLoader/RokkiLoader'
 import { LearningHub } from './features/learning/LearningHub'
 import { PracticePicker } from './features/learning/PracticePicker'
 import { PracticeSession } from './features/learning/PracticeSession'
+import { QuizPicker } from './features/learning/QuizPicker'
+import { QuizSession } from './features/learning/QuizSession'
 import { PRACTICE_ROUND_SIZE, practiceRoundLength } from './features/learning/practiceRound'
 import { PantryNotFound } from './features/pantries/PantryNotFound'
 import { usePantry } from './features/pantries/usePantry'
 import { HomeDashboard } from './features/onboarding/HomeDashboard'
 import { OnboardingFlow } from './features/onboarding/OnboardingFlow'
 import { useOnboarding } from './features/onboarding/useOnboarding'
+import { TreatKitchen } from './features/treats/TreatKitchen'
 import './App.css'
 
 const IMPORT_PATH = '/pantries/import'
@@ -57,6 +62,9 @@ const studyButtonLabel = (cardCount: number) =>
   cardCount > PRACTICE_ROUND_SIZE
     ? `Study ${practiceRoundLength(cardCount)} of ${cardCount} cards`
     : `Study ${cardCount} ${cardCount === 1 ? 'card' : 'cards'}`
+
+const isGenerationWorking = (status: LocalAiStatus) =>
+  status.stage === 'checking' || status.stage === 'downloading' || status.stage === 'generating'
 
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
 
@@ -78,7 +86,8 @@ function AppRoutes() {
 
   const routePantryId = matchPath('/pantries/:pantryId', location.pathname)?.params.pantryId
   const activePantryId = routePantryId === 'import' || routePantryId === 'manual' ? undefined : routePantryId
-  const isStudying = matchPath('/learn/practice/:pantryId', location.pathname) !== null
+  const isStudying =
+    matchPath('/learn/practice/:pantryId', location.pathname) !== null || matchPath('/learn/quiz/:pantryId', location.pathname) !== null
 
   const refreshPantries = async () => {
     setSummaries(await pantryRepository.listPantries())
@@ -168,6 +177,9 @@ function AppRoutes() {
           <Route element={<LearningHub pantries={summaries} />} path="/learn" />
           <Route element={<PracticePicker pantries={summaries} />} path="/learn/practice" />
           <Route element={<PracticeSession />} path="/learn/practice/:pantryId" />
+          <Route element={<QuizPicker pantries={summaries} />} path="/learn/quiz" />
+          <Route element={<QuizSession />} path="/learn/quiz/:pantryId" />
+          <Route element={<TreatKitchen />} path={TREATS_PATH} />
           <Route element={<Navigate replace to="/pantries" />} path="*" />
         </Routes>
       </main>
@@ -313,7 +325,9 @@ function ImportWorkspace({
         <div className="step-label">01 / BRING A SOURCE</div>
         <label className="file-drop" htmlFor="pdf-file">
           <input accept="application/pdf,.pdf" aria-label="Choose a PDF" id="pdf-file" ref={fileInputRef} onChange={(event) => void onFileSelected(event)} type="file" />
-          <span className="file-icon"><Icon icon={FileUploadIcon} size={32} /></span>
+          {isReading
+            ? <RokkiLoader mode="preparing" showLabel={false} size="sm" title="Reading your PDF on this device." />
+            : <span className="file-icon"><Icon icon={FileUploadIcon} size={32} /></span>}
           <strong>{isReading ? 'Reading local PDF…' : sourceName || 'Choose a PDF'}</strong>
           <small>{sourceName ? `${sourcePages.length} text pages found` : 'Text-based PDF only. Scanned PDFs need OCR, which is not in this demo.'}</small>
         </label>
@@ -553,7 +567,9 @@ function PantryWorkspace({
               </div>
               <span>{candidates.length} waiting</span>
             </div>
-            {candidates.length === 0 ? (
+            {isGenerationWorking(generationStatus) ? (
+              <div className="generation-loader"><GenerationLoader status={generationStatus} /></div>
+            ) : candidates.length === 0 ? (
               <div className="empty-state">Generate from one to three selected pages, then review each source-linked suggestion here.</div>
             ) : (
               <div className="candidate-stack">
