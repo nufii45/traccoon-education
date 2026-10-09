@@ -31,3 +31,26 @@ export interface CardValidation {
   valid: boolean
   errors: string[]
 }
+
+// Reason codes only. Diagnostics must never carry learner content.
+export type CardRejectionReason =
+  | 'invalid-json'
+  | 'schema'
+  | 'unknown-chunk'
+  | 'quote-not-found'
+  | 'quote-too-short'
+  | 'options-invalid'
+  | 'correct-index-invalid'
+  | 'validation-failed'
+
+export interface ModelCardAnalysis {
+  cards: GeneratedCard[]
+  candidateCount: number
+  rejections: CardRejectionReason[]
+}
+
+export interface GenerationDiagnostics {
+  responses: number
+  candidates: number
+  reasons: Partial<Record<CardRejectionReason, number>>
+}
