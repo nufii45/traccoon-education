@@ -13,11 +13,12 @@ export type RokkiMessage = (typeof ROKKI_MESSAGES)[number]
  * feel varied. Deterministic when `random` is supplied, which keeps tests
  * stable.
  */
-export function pickMessage(previous?: string, random: () => number = Math.random): RokkiMessage {
+export function pickMessage(previous?: string, random: () => number = Math.random, messages: readonly string[] = ROKKI_MESSAGES): string {
   const pool = previous
-    ? ROKKI_MESSAGES.filter((message) => message !== previous)
-    : ROKKI_MESSAGES
-  const choices = pool.length > 0 ? pool : ROKKI_MESSAGES
+    ? messages.filter((message) => message !== previous)
+    : messages
+  const choices = pool.length > 0 ? pool : messages
+  if (choices.length === 0) return ROKKI_MESSAGES[0]
   const index = Math.min(choices.length - 1, Math.floor(random() * choices.length))
   return choices[index]
 }

@@ -57,11 +57,26 @@ describe('InteractiveRokki', () => {
     })
     const bubble = screen.getByRole('status')
     expect(ROKKI_MESSAGES).toContain(bubble.textContent)
+    expect(button.closest('[data-reacting]')).toHaveAttribute('data-reacting', 'true')
 
     act(() => {
-      vi.advanceTimersByTime(2000)
+      vi.advanceTimersByTime(1000)
+    })
+    expect(button.closest('[data-reacting]')).toHaveAttribute('data-reacting', 'false')
+
+    act(() => {
+      vi.advanceTimersByTime(3500)
     })
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('uses page-specific messages and existing static art if the primary image fails', () => {
+    render(<InteractiveRokki fallbackSrc="/static.webp" imageAlt="Rokki" messages={['Nice work!']} src="/missing.svg" />)
+    const image = screen.getByRole('img', { name: 'Rokki' })
+    fireEvent.error(image)
+    expect(image).toHaveAttribute('src', '/static.webp')
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByRole('status')).toHaveTextContent('Nice work!')
   })
 
   it('does not stack overlapping reactions on rapid repeated clicks', () => {

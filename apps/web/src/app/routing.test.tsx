@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../App'
 import { writeOnboardingState } from '../features/onboarding/onboardingState'
@@ -28,16 +28,28 @@ describe('navigation and URLs', () => {
     window.history.replaceState(null, '', '/')
   })
 
-  it('shows four destinations with My Pantries active and Rokki marked Soon', async () => {
+  it('shows four working destinations with My Pantries active', async () => {
     render(<App />)
     const nav = screen.getByRole('navigation', { name: 'Main' })
 
     expect(within(nav).getByRole('link', { name: 'My Pantries' })).toHaveAttribute('aria-current', 'page')
     expect(within(nav).getByRole('link', { name: 'Learning Hub' })).not.toHaveAttribute('aria-current')
     expect(within(nav).getByRole('link', { name: 'Treat Shelf' })).toHaveAttribute('href', '/treats')
-    const rokki = within(nav).getByText('Rokki').closest('.nav-link')
-    expect(rokki).toHaveAttribute('aria-disabled', 'true')
-    expect(rokki).toHaveTextContent('Soon')
+    expect(within(nav).getByRole('link', { name: 'Rokki' })).toHaveAttribute('href', '/rokki')
+  })
+
+  it('opens Rokki from navigation and directly from its URL', async () => {
+    render(<App />)
+    const nav = screen.getByRole('navigation', { name: 'Main' })
+    fireEvent.click(within(nav).getByRole('link', { name: 'Rokki' }))
+    expect(await screen.findByRole('heading', { name: /Say hello to Rokki/i })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Rokki' })).toHaveAttribute('aria-current', 'page')
+    expect(window.location.pathname).toBe('/rokki')
+
+    cleanup()
+    window.history.replaceState(null, '', '/rokki')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: /Say hello to Rokki/i })).toBeInTheDocument()
   })
 
   it('collapses and expands the nested pantry list', async () => {
