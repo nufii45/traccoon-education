@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Cancel01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { Cancel01Icon, FileSearchIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Icon } from '../../components/Icon/Icon'
 import { validateGeneratedCard } from '../local-ai/cardRules'
 import type { GeneratedCard, SourcePage } from '../local-ai/types'
+import { hasSource } from './cardSource'
 import { isCardEdited } from './cardEdits'
 import type { CardToSave } from './repository'
 
@@ -16,13 +17,19 @@ interface ReviewCardProps {
 const letter = (index: number) => String.fromCharCode(65 + index)
 
 /**
- * A generated suggestion the learner can edit, keep, or discard. Keeping
- * re-runs the evidence check, so an edited quote must still be on its page,
- * and marks the card as edited when anything changed.
+ * A generated suggestion the learner can edit, keep, or discard. The default
+ * view is compact: a header, the question, the four options with the correct
+ * one marked, and a footer. The exact source quote is kept out of the way
+ * behind a "View source" disclosure so a long passage never dominates the
+ * card, while source verification still runs on keep.
+ *
+ * Keeping re-runs the evidence check, so an edited quote must still be on its
+ * page, and marks the card as edited when anything changed.
  */
 export function ReviewCard({ card, onDiscard, onKeep, sourcePages }: ReviewCardProps) {
   const [draft, setDraft] = useState(card)
   const [errors, setErrors] = useState<string[]>([])
+  const [sourceOpen, setSourceOpen] = useState(false)
 
   const changeOption = (index: number, value: string) => {
     setDraft((current) => ({
@@ -35,19 +42,33 @@ export function ReviewCard({ card, onDiscard, onKeep, sourcePages }: ReviewCardP
     const validation = validateGeneratedCard(draft, sourcePages)
     if (!validation.valid) {
       setErrors(validation.errors)
+      // Reveal the evidence so a quote problem is visible where it is edited.
+      if (validation.errors.some((message) => message.toLowerCase().includes('quote'))) {
+        setSourceOpen(true)
+      }
       return
     }
-    onKeep({ ...draft, isEdited: isCardEdited(card, draft) })
+    const explanation = draft.explanation?.trim()
+    onKeep({ ...draft, explanation: explanation || undefined, isEdited: isCardEdited(card, draft) })
   }
+
+  const sourcePanelId = `review-source-${draft.id}`
 
   return (
     <article className="review-card">
-      <div className="review-card-topline">
+      <header className="review-card-topline">
         <span className="local-badge">On-device</span>
-        <span>Evidence: p. {draft.sourcePage}</span>
-      </div>
+        <span className="review-card-page">p. {draft.sourcePage}</span>
+      </header>
+
       <label className="field-label" htmlFor={`question-${draft.id}`}>Question</label>
-      <textarea id={`question-${draft.id}`} onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))} value={draft.question} />
+      <textarea
+        className="review-question"
+        id={`question-${draft.id}`}
+        onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))}
+        value={draft.question}
+      />
+
       <div className="option-list">
         {draft.options.map((option, index) => (
           <label className={index === draft.correctIndex ? 'option correct' : 'option'} key={`${draft.id}-${index}`}>
@@ -57,15 +78,46 @@ export function ReviewCard({ card, onDiscard, onKeep, sourcePages }: ReviewCardP
           </label>
         ))}
       </div>
-      <div className="evidence-box">
-        <span>Source quote · p. {draft.sourcePage}</span>
-        <textarea aria-label="Source quote" onChange={(event) => setDraft((current) => ({ ...current, sourceQuote: event.target.value }))} value={draft.sourceQuote} />
-      </div>
+
+      <label className="field-label" htmlFor={`explanation-${draft.id}`}>Explanation <span className="field-optional">(optional)</span></label>
+      <textarea
+        className="review-explanation"
+        id={`explanation-${draft.id}`}
+        onChange={(event) => setDraft((current) => ({ ...current, explanation: event.target.value }))}
+        placeholder="Short context shown behind a disclosure. Not part of the answer."
+        value={draft.explanation ?? ''}
+      />
+
       {errors.length > 0 ? <p className="form-error" role="alert">{errors.join(' ')}</p> : null}
-      <div className="review-actions">
-        <button className="secondary-button" onClick={onDiscard} type="button"><Icon icon={Cancel01Icon} />Discard</button>
-        <button className="primary-button" onClick={keep} type="button"><Icon icon={Tick02Icon} />Keep card</button>
-      </div>
+
+      <footer className="review-card-footer">
+        {hasSource(draft) ? (
+          <button
+            aria-controls={sourcePanelId}
+            aria-expanded={sourceOpen}
+            className="text-button review-source-toggle"
+            onClick={() => setSourceOpen((open) => !open)}
+            type="button"
+          >
+            <Icon icon={FileSearchIcon} size={16} />
+            {sourceOpen ? 'Hide source' : `Page ${draft.sourcePage} · View source`}
+          </button>
+        ) : (
+          <span className="review-source-none">No source</span>
+        )}
+        <div className="review-actions">
+          <button className="secondary-button" onClick={onDiscard} type="button"><Icon icon={Cancel01Icon} />Discard</button>
+          <button className="primary-button" onClick={keep} type="button"><Icon icon={Tick02Icon} />Keep card</button>
+        </div>
+      </footer>
+
+      {sourceOpen && hasSource(draft) ? (
+        <div className="evidence-box" id={sourcePanelId}>
+          <span>Source quote · p. {draft.sourcePage}</span>
+          <textarea aria-label="Source quote" onChange={(event) => setDraft((current) => ({ ...current, sourceQuote: event.target.value }))} value={draft.sourceQuote} />
+          <p className="evidence-note">A matching quote proves the passage exists. Check that it supports the answer you marked.</p>
+        </div>
+      ) : null}
     </article>
   )
 }

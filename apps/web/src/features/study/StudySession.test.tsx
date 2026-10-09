@@ -105,4 +105,14 @@ describe('StudySession', () => {
     answer(/Cytoplasm/)
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be saved on this device')
   })
+
+  it('reveals an optional explanation only after the answer is checked', () => {
+    const withExplanation = { ...TEST_CARDS[0], explanation: 'Oxygen is not required for this step.' }
+    render(
+      <StudySession cards={[withExplanation]} onAttempt={vi.fn().mockResolvedValue(undefined)} onBack={vi.fn()} sourceName="lecture-4.pdf" sourcePages={TEST_PAGES} />,
+    )
+    expect(screen.queryByText('Oxygen is not required for this step.')).toBeNull()
+    answer(/Cytoplasm/)
+    expect(screen.getByText('Oxygen is not required for this step.')).toBeInTheDocument()
+  })
 })

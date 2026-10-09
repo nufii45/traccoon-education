@@ -227,6 +227,9 @@ export function StudySession({
               {result.isCorrect ? null : (
                 <p>The answer is {letter(card.correctIndex)}, {card.options[card.correctIndex]}.</p>
               )}
+              {card.explanation?.trim() ? (
+                <p className={styles.feedbackExplanation}>{card.explanation.trim()}</p>
+              ) : null}
             </div>
           ) : null}
         </div>
