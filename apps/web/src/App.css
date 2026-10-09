@@ -326,6 +326,14 @@ h2 {
   font-weight: 700;
 }
 
+.import-workspace h1 {
+  font-size: var(--text-title);
+}
+
+.import-workspace .privacy-callout {
+  margin-top: var(--space-4);
+}
+
 .privacy-callout {
   display: flex;
   flex-wrap: wrap;
@@ -551,6 +559,17 @@ select:focus-visible {
 .workspace-header h1 {
   margin: var(--space-3) 0 var(--space-2);
   font-size: clamp(36px, 5vw, 52px);
+}
+
+.workspace-header.studying {
+  display: block;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-4);
+}
+
+.workspace-header.studying h1 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-heading);
 }
 
 .workspace-header p {
@@ -1003,6 +1022,11 @@ fieldset.manual-options legend {
     padding: var(--space-4);
     border-right: 0;
     border-bottom: 2px solid var(--color-border);
+  }
+
+  /* Studying on a phone: the card owns the screen. "Back to pantry" restores the sidebar. */
+  .app-shell.is-studying .sidebar {
+    display: none;
   }
 
   .new-source-button {
