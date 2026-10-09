@@ -52,7 +52,9 @@ test('Local Private mode does not transmit local source text when WebGPU is unav
     buffer: buildTextPdf(localSourceText),
   })
   await expect(page.getByText(/1 text pages found/)).toBeVisible()
-  await page.getByLabel('p. 1').check()
+  await expect(page.getByRole('img', { name: 'Preview of page 1' })).toBeVisible()
+  await page.getByRole('button', { name: 'Select page 1', exact: true }).click()
+  await page.getByRole('button', { name: 'Save selection' }).click()
   await page.getByRole('button', { name: 'Create local pantry' }).click()
   await page.getByRole('button', { name: 'Generate local cards' }).click()
 

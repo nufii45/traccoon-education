@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { validateGeneratedCard } from './features/local-ai/cardRules'
 import { chunkSourcePages, selectSourcePages } from './features/local-ai/chunks'
 import {
@@ -8,10 +8,11 @@ import {
   type LocalAiStatus,
 } from './features/local-ai/localAiClient'
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
-import type { GeneratedCard, SourcePage } from './features/local-ai/types'
+import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
-import { extractPdfText } from './features/pantries/pdfText'
+import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
+import { PdfPagePicker } from './features/pantries/PdfPagePicker'
 import { ReviewCard } from './features/pantries/ReviewCard'
 import { StudySession } from './features/study/StudySession'
 import { summarizeAttempts, type AttemptSummary } from './features/study/attemptSummary'
@@ -178,9 +179,18 @@ function ImportWorkspace({
 }) {
   const [title, setTitle] = useState('')
   const [sourceName, setSourceName] = useState('')
-  const [sourcePages, setSourcePages] = useState<SourcePage[]>([])
+  const [pdfSource, setPdfSource] = useState<PdfSource>()
   const [selectedPages, setSelectedPages] = useState<number[]>([])
+  const [isPagePickerOpen, setIsPagePickerOpen] = useState(false)
   const [isReading, setIsReading] = useState(false)
+  const sourceRef = useRef<PdfSource | undefined>(undefined)
+  const importRequest = useRef(0)
+  const sourcePages = pdfSource?.pages ?? []
+
+  useEffect(() => () => {
+    importRequest.current += 1
+    void sourceRef.current?.destroy()
+  }, [])
 
   const onFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -188,21 +198,34 @@ function ImportWorkspace({
       return
     }
 
+    event.target.value = ''
+    const request = ++importRequest.current
+    void sourceRef.current?.destroy()
+    sourceRef.current = undefined
+    setPdfSource(undefined)
+    setSourceName('')
+    setTitle('')
+    setSelectedPages([])
+    setIsPagePickerOpen(false)
     onError(undefined)
     setIsReading(true)
 
     try {
-      const pages = await extractPdfText(file)
+      const source = await loadPdfSource(file)
+      if (request !== importRequest.current) {
+        await source.destroy()
+        return
+      }
+      sourceRef.current = source
+      setPdfSource(source)
       setSourceName(file.name)
       setTitle(titleFromFileName(file.name))
-      setSourcePages(pages)
-      setSelectedPages([])
+      setIsPagePickerOpen(true)
     } catch (reason) {
+      if (request !== importRequest.current) return
       onError(reason instanceof Error ? reason.message : 'Traccoon could not read that PDF.')
-      setSourcePages([])
-      setSelectedPages([])
     } finally {
-      setIsReading(false)
+      if (request === importRequest.current) setIsReading(false)
     }
   }
 
@@ -223,20 +246,6 @@ function ImportWorkspace({
     } catch (reason) {
       onError(reason instanceof Error ? reason.message : 'Traccoon could not create this pantry.')
     }
-  }
-
-  const togglePage = (pageNumber: number) => {
-    setSelectedPages((current) => {
-      if (current.includes(pageNumber)) {
-        return current.filter((page) => page !== pageNumber)
-      }
-      if (current.length === MAX_SELECTED_PAGES) {
-        onError(`P0 generation uses one to ${MAX_SELECTED_PAGES} pages at a time.`)
-        return current
-      }
-      onError(undefined)
-      return [...current, pageNumber].sort((a, b) => a - b)
-    })
   }
 
   return (
@@ -263,23 +272,35 @@ function ImportWorkspace({
           <div className="source-setup">
             <label className="field-label" htmlFor="pantry-title">Pantry name</label>
             <input id="pantry-title" onChange={(event) => setTitle(event.target.value)} value={title} />
-            <fieldset className="page-picker">
-              <legend>Select 1–3 pages for the first card batch</legend>
-              <div className="page-options">
-                {sourcePages.map((page) => (
-                  <label key={page.id}>
-                    <input checked={selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} type="checkbox" />
-                    <span>p. {page.pageNumber}</span>
-                  </label>
-                ))}
+            <div className="page-selection-summary">
+              <div>
+                <strong>Pages for the first card batch</strong>
+                <p>{selectedPages.length ? `Selected pages: ${selectedPages.join(', ')}` : 'Preview your PDF and choose 1–3 pages.'}</p>
               </div>
-            </fieldset>
+              <button className="secondary-button" onClick={() => setIsPagePickerOpen(true)} type="button">
+                {selectedPages.length ? 'Edit page selection' : 'Select pages'}
+              </button>
+            </div>
             <button className="primary-button" disabled={selectedPages.length === 0} onClick={() => void createPantry()} type="button">
               Create local pantry <Icon icon={ArrowRight02Icon} />
             </button>
           </div>
         ) : null}
       </div>
+
+      {pdfSource ? (
+        <PdfPagePicker
+          isOpen={isPagePickerOpen}
+          onClose={() => setIsPagePickerOpen(false)}
+          onSave={(pages) => {
+            setSelectedPages(pages)
+            setIsPagePickerOpen(false)
+          }}
+          selectedPages={selectedPages}
+          source={pdfSource}
+          sourceName={sourceName}
+        />
+      ) : null}
 
       <div className="manual-row">
         <span>Already have questions in mind?</span>
