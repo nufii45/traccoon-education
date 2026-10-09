@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { AlertCircleIcon, CheckmarkCircle02Icon, Download04Icon, Loading03Icon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { Icon } from '../../components/Icon/Icon'
-import { LOCAL_MODEL_ID, type LocalAiStatus } from '../local-ai/localAiClient'
-import { checkModelCache, checkWebGpu, type ModelCacheState, type WebGpuSupport } from './modelReadiness'
+import { LOCAL_COMPATIBILITY_MODEL_ID, LOCAL_MODEL_ID, type LocalAiStatus } from '../local-ai/localAiClient'
+import { checkModelCache, checkWebGpu, expectedModelId, type ModelCacheState, type WebGpuSupport } from './modelReadiness'
 import styles from './ModelReadinessPanel.module.css'
 
 interface ReadinessRow {
@@ -43,6 +43,8 @@ const filesRow = (cache: ModelCacheState | undefined): ReadinessRow => {
  */
 export function ModelReadinessPanel({ status }: { status: LocalAiStatus }) {
   const [webGpu, setWebGpu] = useState<WebGpuSupport>()
+  // The build this GPU will load: GPUs without shader-f16 get the compatibility build.
+  const [modelId, setModelId] = useState(LOCAL_MODEL_ID)
   const [cache, setCache] = useState<ModelCacheState>()
   const isModelLoaded = status.stage === 'ready'
 
@@ -51,11 +53,13 @@ export function ModelReadinessPanel({ status }: { status: LocalAiStatus }) {
     let isActive = true
 
     const check = async () => {
-      const support = await checkWebGpu()
+      const gpu = await checkWebGpu()
       if (!isActive) return
-      setWebGpu(support)
-      if (support !== 'available') return
-      const cacheState = await checkModelCache(LOCAL_MODEL_ID)
+      setWebGpu(gpu.support)
+      if (gpu.support !== 'available') return
+      const expected = expectedModelId(gpu.halfPrecision, { primary: LOCAL_MODEL_ID, compatibility: LOCAL_COMPATIBILITY_MODEL_ID })
+      setModelId(expected)
+      const cacheState = await checkModelCache(expected)
       if (isActive) setCache(cacheState)
     }
 
@@ -73,7 +77,7 @@ export function ModelReadinessPanel({ status }: { status: LocalAiStatus }) {
       <dl className={styles.rows}>
         <div className={styles.row}>
           <dt>On-device model</dt>
-          <dd><code className={styles.modelId}>{LOCAL_MODEL_ID}</code></dd>
+          <dd><code className={styles.modelId}>{modelId}</code></dd>
         </div>
         {rows.map((row) => (
           <div className={styles.row} key={row.label}>
