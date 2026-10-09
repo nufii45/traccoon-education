@@ -1,4 +1,6 @@
+import { FileSearchIcon, FileNotFoundIcon } from '@hugeicons/core-free-icons'
 import { Dialog } from '../../components/Dialog/Dialog'
+import { Icon } from '../../components/Icon/Icon'
 import type { SourcePage } from '../local-ai/types'
 import type { StoredCard } from '../pantries/repository'
 import { findQuoteHighlight } from './quoteHighlight'
@@ -34,12 +36,12 @@ export function SourceView({ card, sourcePages, sourceName, onClose }: SourceVie
           <div className={styles.evidenceNote}>
             {highlight ? (
               <>
-                <strong>Quote found on page {card.sourcePage}</strong>
+                <strong><Icon icon={FileSearchIcon} size={16} />Quote found on page {card.sourcePage}</strong>
                 <span>This is the passage the card was written from. Check the answer against it yourself.</span>
               </>
             ) : (
               <>
-                <strong>Saved quote from page {card.sourcePage}</strong>
+                <strong><Icon icon={FileNotFoundIcon} size={16} />Saved quote from page {card.sourcePage}</strong>
                 <span>
                   {page
                     ? "This exact passage couldn't be pinpointed in the page text below, so the saved quote is shown on its own."

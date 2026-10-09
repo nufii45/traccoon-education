@@ -12,11 +12,14 @@ export default defineConfig({
         name: 'Traccoon Education',
         short_name: 'Traccoon',
         description: 'Local-first PDF study cards that stay on your device.',
-        theme_color: '#2f6b3d',
-        background_color: '#fcfdf9',
+        theme_color: '#141414',
+        background_color: '#ffffff',
         display: 'standalone',
       },
       workbox: {
+        // Default globs skip .mjs and .woff2, which left the PDF.js worker and
+        // bundled fonts out of the offline cache.
+        globPatterns: ['**/*.{js,mjs,css,html,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 9 * 1024 * 1024,
       },
     }),
