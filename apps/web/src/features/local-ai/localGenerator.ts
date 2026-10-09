@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { normaliseEvidenceText, validateGeneratedCard } from './cardRules'
+import { checkCardQuality, dedupeCards } from './cardQuality'
 import { MAX_CARDS_PER_RUN, MIN_NORMALIZED_QUOTE_CHARS } from './policy'
 import { anchorQuote } from './quoteAnchor'
 import type {
@@ -19,6 +20,7 @@ const modelCardSchema = z.object({
   correctIndex: z.union([z.number(), z.string()]).optional(),
   answer: z.string().optional(),
   correctAnswer: z.string().optional(),
+  explanation: z.string().optional(),
   sourceChunkId: z.string().optional(),
   sourceQuote: z.string().optional(),
 })
@@ -39,6 +41,7 @@ export const LOCAL_CARD_RESPONSE_SCHEMA: string = JSON.stringify({
           question: { type: 'string' },
           options: { type: 'array', items: { type: 'string' }, minItems: 4, maxItems: 4 },
           correctIndex: { type: 'integer', minimum: 0, maximum: 3 },
+          explanation: { type: 'string' },
           sourceChunkId: { type: 'string' },
           sourceQuote: { type: 'string' },
         },
@@ -140,12 +143,16 @@ export const buildLocalGenerationPrompt = (chunks: SourceChunk[], requestedCount
 
   return `Create up to ${Math.min(requestedCount, MAX_CARDS_PER_RUN)} multiple-choice study cards. Use a different source chunk for each card when possible, one card per chunk.
 Return only a JSON object in this exact shape:
-{"cards":[{"question":"A question answered by the chunk?","options":["answer A","answer B","answer C","answer D"],"correctIndex":0,"sourceChunkId":"the id of the chunk you used","sourceQuote":"one complete sentence copied from that chunk"}]}
+{"cards":[{"question":"A clear question answered by the chunk?","options":["short answer A","short answer B","short answer C","short answer D"],"correctIndex":0,"explanation":"one short sentence of context (optional)","sourceChunkId":"the id of the chunk you used","sourceQuote":"one complete sentence copied from that chunk"}]}
 Rules:
-- options must be four different short answers. Exactly one is correct.
+- Each card tests exactly one fact. Split a comparison into separate cards.
+- Keep the question between 8 and 18 words. Use plain, student-friendly language. Keep scientific names and essential terminology.
+- Do not shorten a question by dropping the subject or the conditions it asks about. If it names a condition (for example a growing medium), the answer must match that condition.
+- Keep each option short, ideally 1 to 12 words. Make the correct option the exact value the quote supports. options must be four different short answers. Exactly one is correct.
 - correctIndex is a number from 0 to 3 that points to the correct option.
+- Put any extra context in explanation, not in the answer. Keep the answer itself to the essential value.
 - sourceChunkId is the id shown after SOURCE_CHUNK id=.
-- Copy one complete sentence from the chunk into sourceQuote. Do not change its words.
+- Copy one complete sentence from the chunk into sourceQuote. Do not change its words. The quote must actually support the question and its correct answer.
 - Use only facts from the source chunks.
 
 ${sources}`
@@ -363,10 +370,32 @@ const analyseCandidate = (
     createdAt: now(),
   }
 
+  const explanation = card.explanation?.trim()
+  if (explanation) {
+    generated.explanation = explanation
+  }
+
   // The unchanged evidence gate still runs against the real page text.
-  return validateGeneratedCard(generated, sourcePages).valid
-    ? { card: generated }
-    : { reason: 'validation-failed' }
+  if (!validateGeneratedCard(generated, sourcePages).valid) {
+    return { reason: 'validation-failed' }
+  }
+
+  // Concise-length and semantic-correctness gate. Quote matching above only
+  // proved the passage exists; this rejects cards whose marked answer the
+  // evidence does not support or actively contradicts, and cards that are not
+  // bite-sized.
+  const quality = checkCardQuality(generated)
+  if (!quality.valid) {
+    if (quality.reasons.includes('answer-unsupported') || quality.reasons.includes('answer-contradicted')) {
+      return { reason: 'semantic-mismatch' }
+    }
+    if (quality.reasons.includes('answer-too-long')) {
+      return { reason: 'answer-length' }
+    }
+    return { reason: 'question-length' }
+  }
+
+  return { card: generated }
 }
 
 export const analyseModelCards = (
@@ -396,7 +425,14 @@ export const analyseModelCards = (
     }
   })
 
-  return { cards, candidateCount: candidates.length, rejections }
+  // Favour coverage of distinct facts: drop near-duplicate questions, keeping
+  // the earliest. Each removed card is reported so diagnostics stay honest.
+  const deduped = dedupeCards(cards)
+  for (let dropped = cards.length - deduped.length; dropped > 0; dropped -= 1) {
+    rejections.push('duplicate')
+  }
+
+  return { cards: deduped, candidateCount: candidates.length, rejections }
 }
 
 export const parseModelCards = (

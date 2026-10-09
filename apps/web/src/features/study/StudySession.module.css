@@ -48,6 +48,13 @@
   margin: 0;
 }
 
+.feedbackExplanation {
+  margin-top: var(--space-2) !important;
+  color: var(--color-copy);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 .feedbackCorrect {
   border-color: var(--color-success);
   background: var(--color-success-surface);

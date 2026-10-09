@@ -28,8 +28,6 @@ export type GenerationPhase =
   | 'idle'
   | 'preparing'
   | 'generating'
-  | 'verifying'
-  | 'finalizing'
   | 'completed'
   | 'failed'
   | 'unsupported'
@@ -59,10 +57,12 @@ const stageIndexForStatus = (status: LocalAiStatus): number => {
     // The model is loaded and the prompt is being built: key-concept phase.
     case 'ready':
       return 1
+    // The generator runs inference and then verifies and prepares cards in one
+    // burst without a separate status, so the questions stage stays active
+    // through that work; stages 4 and 5 only complete once cards actually
+    // arrive (see deriveGenerationView).
     case 'generating':
       return 2
-    case 'verifying':
-      return 3
     default:
       return 0
   }
@@ -76,8 +76,6 @@ const phaseForStatus = (status: LocalAiStatus): GenerationPhase => {
       return 'preparing'
     case 'generating':
       return 'generating'
-    case 'verifying':
-      return 'verifying'
     case 'unsupported':
       return 'unsupported'
     case 'cancelled':
@@ -172,7 +170,6 @@ export const isGenerationBusy = (status: LocalAiStatus): boolean =>
   || status.stage === 'downloading'
   || status.stage === 'ready'
   || status.stage === 'generating'
-  || status.stage === 'verifying'
 
 export type ModelStatusTone = 'ok' | 'info' | 'pending' | 'error'
 
@@ -205,9 +202,9 @@ export const compactModelStatus = (
   }
 
   // Not actively loading. The model is operational the moment it has loaded in
-  // this session (ready/generating/verifying), otherwise readiness depends on
-  // the cached files being present and WebGPU being available.
-  const loadedThisSession = status.stage === 'ready' || status.stage === 'generating' || status.stage === 'verifying'
+  // this session (ready/generating), otherwise readiness depends on the cached
+  // files being present and WebGPU being available.
+  const loadedThisSession = status.stage === 'ready' || status.stage === 'generating'
   const cachedOffline = readiness.webGpu === 'available' && readiness.cache === 'cached'
 
   if (loadedThisSession) {

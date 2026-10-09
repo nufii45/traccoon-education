@@ -149,6 +149,10 @@ const toStoredCard = (pantryId: string, card: CardToSave): StoredCard => {
     stored.generationMethod = card.generationMethod
   }
 
+  if (card.explanation !== undefined && card.explanation.trim().length > 0) {
+    stored.explanation = card.explanation
+  }
+
   if (card.isEdited !== undefined) {
     stored.isEdited = card.isEdited
   }

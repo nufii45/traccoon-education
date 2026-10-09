@@ -417,6 +417,28 @@ describe('LocalPantryRepository', () => {
     expect(storedEdited?.isEdited).toBe(true)
     expect(storedPlain && 'isEdited' in storedPlain).toBe(false)
   })
+
+  it('round-trips a non-empty explanation and omits it when blank', async () => {
+    const name = newDatabaseName()
+    const repository = openRepository(name)
+    const pantry = await repository.save({
+      ...pantryInput('Explained cards'),
+      cards: [
+        cardWith({ id: 'with-explanation', explanation: 'Energy is released as ATP.' }),
+        cardWith({ id: 'blank-explanation', explanation: '   ' }),
+        cardWith({ id: 'no-explanation' }),
+      ],
+    })
+
+    const loaded = await repository.getPantry(pantry.id)
+    expect(loaded?.cards.find((stored) => stored.id === 'with-explanation')?.explanation).toBe('Energy is released as ATP.')
+    expect(loaded?.cards.find((stored) => stored.id === 'blank-explanation')?.explanation).toBeUndefined()
+    expect(loaded?.cards.find((stored) => stored.id === 'no-explanation')?.explanation).toBeUndefined()
+
+    const storedCards = await readStore<StoredCard>(name, 'pantryCards')
+    const storedBlank = storedCards.find((stored) => stored.id === 'blank-explanation')
+    expect(storedBlank && 'explanation' in storedBlank).toBe(false)
+  })
 })
 
 describe('LocalPantryRepository treat economy', () => {
