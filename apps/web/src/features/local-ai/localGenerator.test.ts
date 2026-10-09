@@ -46,4 +46,50 @@ describe('parseModelCards', () => {
     })
     expect(validateGeneratedCard(cards[0], pages)).toEqual({ valid: true, errors: [] })
   })
+
+  const validCard = {
+    question: 'What do plants use chlorophyll to capture?',
+    options: ['Light', 'Sound', 'Water', 'Soil'],
+    correctIndex: 0,
+    sourcePage: 1,
+    sourceQuote: chunks[0].text,
+    sourceChunkId: chunks[0].id,
+  }
+
+  const now = () => '2026-10-09T08:00:00.000Z'
+
+  it('tolerates a trailing comma after the last array element', () => {
+    const cards = parseModelCards(`[${JSON.stringify(validCard)},]`, pages, now)
+
+    expect(cards).toHaveLength(1)
+    expect(validateGeneratedCard(cards[0], pages)).toEqual({ valid: true, errors: [] })
+  })
+
+  it('salvages a valid object and drops malformed trailing garbage', () => {
+    const content = `[${JSON.stringify(validCard)} this is not valid json at all ]`
+    const cards = parseModelCards(content, pages, now)
+
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({ sourceChunkId: 'page-1-chunk-1' })
+  })
+
+  it('salvages complete leading objects from an array truncated by max tokens', () => {
+    const content = `[${JSON.stringify(validCard)},{"question":"What is`
+    const cards = parseModelCards(content, pages, now)
+
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({ sourceChunkId: 'page-1-chunk-1' })
+  })
+
+  it('returns an empty array for non-JSON garbage without throwing', () => {
+    expect(parseModelCards('Sorry, I cannot answer that right now.', pages, now)).toEqual([])
+  })
+
+  it('parses a fenced json block containing a valid array', () => {
+    const content = '```json\n' + `[${JSON.stringify(validCard)}]` + '\n```'
+    const cards = parseModelCards(content, pages, now)
+
+    expect(cards).toHaveLength(1)
+    expect(validateGeneratedCard(cards[0], pages)).toEqual({ valid: true, errors: [] })
+  })
 })
