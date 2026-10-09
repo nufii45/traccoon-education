@@ -245,17 +245,6 @@ a.nav-link:hover {
   line-height: 1.5;
 }
 
-.sidebar-footer {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: auto;
-  padding: var(--space-3) var(--space-2) 0;
-  border-top: 2px solid var(--color-border);
-  color: var(--color-neutral);
-  font: 700 var(--text-label) var(--font-sans);
-}
-
 .main-content {
   width: min(1080px, 100%);
   margin: 0 auto;
@@ -1318,10 +1307,6 @@ fieldset.manual-options legend {
 
   .pantry-group-label {
     grid-column: 1 / -1;
-  }
-
-  .sidebar-footer {
-    display: none;
   }
 
   .main-content {
