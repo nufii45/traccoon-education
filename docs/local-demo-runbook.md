@@ -20,7 +20,11 @@ browser because the local model path uses WebGPU.
 4. The first attempt checks WebGPU, downloads
    `Qwen3.5-4B-q4f16_1-MLC` into browser-managed storage, and shows progress
    in the green generation panel. The model requires about 3.87 GB of GPU
-   memory, so use the demo Mac rather than a phone or low-memory machine.
+   memory, so use the demo Mac rather than a phone or low-memory machine. On
+   a GPU without `shader-f16` support, or one that cannot compile the
+   half-precision build, the app downloads the full-precision build of the
+   same model, `Qwen3.5-4B-q4f32_1-MLC`, instead. The status line names the
+   build in use; record it in the demo evidence.
 5. Keep one source-linked card. If WebGPU or the model is unavailable, the app
    keeps the source unchanged and directs the learner to manual authoring.
 

@@ -17,6 +17,13 @@ import type {
 import type { ChatCompletion, ChatCompletionRequestNonStreaming, WebWorkerMLCEngine } from '@mlc-ai/web-llm'
 
 export const LOCAL_MODEL_ID = 'Qwen3.5-4B-q4f16_1-MLC'
+// The same model and size compiled without half-precision shaders. It runs on
+// GPUs that do not expose `shader-f16`, which the default build requires.
+export const LOCAL_COMPATIBILITY_MODEL_ID = 'Qwen3.5-4B-q4f32_1-MLC'
+
+// Regeneration samples a little more freely so a retry is not the same answer
+// again. The first attempt stays close to deterministic.
+const ATTEMPT_TEMPERATURES = [0.15, 0.35, 0.55]
 
 export type LocalAiStatus =
   | { stage: 'idle'; detail: string }
@@ -109,59 +116,191 @@ const throwIfCancelled = (signal?: AbortSignal) => {
   }
 }
 
-const awaitWithCancellation = <Value>(operation: Promise<Value>, signal?: AbortSignal): Promise<Value> => {
-  throwIfCancelled(signal)
-
+// Rejects as soon as the signal aborts, even if the task never settles, for
+// example because its worker was terminated mid-download. Without this a
+// cancelled run would leave the interface waiting forever.
+const abortable = <T>(task: Promise<T>, signal?: AbortSignal): Promise<T> => {
   if (!signal) {
-    return operation
+    return task
   }
 
-  return new Promise<Value>((resolve, reject) => {
-    const cancel = () => {
-      cleanup()
-      reject(new LocalGenerationCancelledError())
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new LocalGenerationCancelledError())
+    signal.addEventListener('abort', onAbort, { once: true })
+    task.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort))
+    if (signal.aborted) {
+      onAbort()
     }
-    const cleanup = () => signal.removeEventListener('abort', cancel)
-
-    signal.addEventListener('abort', cancel, { once: true })
-    void operation.then(
-      (value) => {
-        cleanup()
-        resolve(value)
-      },
-      (error: unknown) => {
-        cleanup()
-        reject(error)
-      },
-    )
   })
 }
 
-const loadEngine = async (onStatus?: (status: LocalAiStatus) => void, signal?: AbortSignal) => {
-  if (engine) {
-    return engine
+const describeWorkerEvent = (event: Event): string => {
+  const message = (event as Partial<ErrorEvent>).message
+  return typeof message === 'string' && message.trim()
+    ? `The local model worker stopped: ${message}`
+    : 'The local model worker could not be loaded.'
+}
+
+// A worker whose script fails to load or crashes never answers the engine's
+// requests, which would leave initialisation pending forever.
+const failOnWorkerError = <T>(task: Promise<T>, activeWorker: Worker): Promise<T> => {
+  if (typeof activeWorker.addEventListener !== 'function') {
+    return task
   }
 
-  onStatus?.({ stage: 'downloading', detail: `Preparing ${LOCAL_MODEL_ID} on this device…`, progress: 0 })
-  const webllm = await awaitWithCancellation(loadWebLlm(), signal)
-  throwIfCancelled(signal)
-  worker ??= new Worker(new URL('../../workers/localAi.worker.ts', import.meta.url), { type: 'module' })
-  const loadedEngine = await awaitWithCancellation(
-    webllm.CreateWebWorkerMLCEngine(worker, LOCAL_MODEL_ID, {
-      initProgressCallback: (report) => {
-        onStatus?.({
-          stage: 'downloading',
-          detail: report.text,
-          progress: Math.round(report.progress * 100),
-        })
-      },
-    }),
-    signal,
-  )
-  throwIfCancelled(signal)
-  engine = loadedEngine
-  onStatus?.({ stage: 'ready', detail: `${LOCAL_MODEL_ID} is ready on this device.` })
-  return engine
+  return new Promise<T>((resolve, reject) => {
+    const onError = (event: Event) => reject(new Error(describeWorkerEvent(event)))
+    activeWorker.addEventListener('error', onError)
+    activeWorker.addEventListener('messageerror', onError)
+    task.then(resolve, reject).finally(() => {
+      activeWorker.removeEventListener('error', onError)
+      activeWorker.removeEventListener('messageerror', onError)
+    })
+  })
+}
+
+// Drops the worker and everything bound to it. Terminating the worker also
+// stops an in-progress model download.
+const discardWorker = () => {
+  worker?.terminate()
+  worker = undefined
+  engine = undefined
+  engineLoad = undefined
+  epoch += 1
+}
+
+const startEngineLoad = async (
+  modelId: string,
+  onStatus?: (status: LocalAiStatus) => void,
+): Promise<WebWorkerMLCEngine> => {
+  const startedAt = epoch
+  onStatus?.({ stage: 'downloading', detail: `Preparing ${modelId} on this deviceΓÇª`, progress: 0 })
+  const webllm = await loadWebLlm()
+  if (epoch !== startedAt) {
+    throw new LocalGenerationCancelledError()
+  }
+
+  const activeWorker = new Worker(new URL('../../workers/localAi.worker.ts', import.meta.url), { type: 'module' })
+  worker = activeWorker
+
+  try {
+    const created = await failOnWorkerError(
+      webllm.CreateWebWorkerMLCEngine(activeWorker, modelId, {
+        initProgressCallback: (report) => {
+          onStatus?.({
+            stage: 'downloading',
+            detail: report.text,
+            progress: Math.round(report.progress * 100),
+          })
+        },
+      }),
+      activeWorker,
+    )
+    if (epoch !== startedAt) {
+      // Cancelled or released while the model was initialising.
+      throw new LocalGenerationCancelledError()
+    }
+    engine = created
+    return created
+  } catch (error) {
+    // A failed initialisation can leave GPU memory and a half-built engine in
+    // the worker, so the next attempt starts from a fresh one.
+    if (worker === activeWorker) {
+      discardWorker()
+    }
+    throw error
+  }
+}
+
+const loadEngine = (modelId: string, onStatus?: (status: LocalAiStatus) => void): Promise<WebWorkerMLCEngine> => {
+  if (engine) {
+    return Promise.resolve(engine)
+  }
+
+  if (engineLoad) {
+    return engineLoad
+  }
+
+  const load: Promise<WebWorkerMLCEngine> = startEngineLoad(modelId, onStatus).finally(() => {
+    // A newer load may have replaced this one after a cancel; leave it alone.
+    if (engineLoad === load) {
+      engineLoad = undefined
+    }
+  })
+  engineLoad = load
+  return load
+}
+
+interface WebGpuAdapterLike {
+  features?: { has: (feature: string) => boolean }
+}
+
+interface WebGpuLike {
+  requestAdapter?: (options?: { powerPreference?: 'high-performance' }) => Promise<WebGpuAdapterLike | null>
+}
+
+// `halfPrecision` is undefined when the browser did not say.
+type GpuReport = { adapter: 'missing' } | { adapter: 'present'; halfPrecision?: boolean }
+
+const probeGpu = async (gpu: WebGpuLike): Promise<GpuReport> => {
+  if (typeof gpu.requestAdapter !== 'function') {
+    return { adapter: 'present' }
+  }
+
+  try {
+    // The same preference web-llm uses, so both pick the same GPU on dual-GPU laptops.
+    // Some drivers answer one request shape and not the other, so ask again
+    // without a preference before concluding there is no GPU.
+    const adapter = (await gpu.requestAdapter({ powerPreference: 'high-performance' })) ?? (await gpu.requestAdapter())
+    if (!adapter) {
+      return { adapter: 'missing' }
+    }
+    return { adapter: 'present', halfPrecision: adapter.features?.has('shader-f16') }
+  } catch {
+    // The engine meets the same condition during initialisation and reports
+    // its own error, which is then shown to the learner.
+    return { adapter: 'present' }
+  }
+}
+
+const chooseModelId = (report: GpuReport): string =>
+  preferCompatibilityModel || (report.adapter === 'present' && report.halfPrecision === false)
+    ? LOCAL_COMPATIBILITY_MODEL_ID
+    : LOCAL_MODEL_ID
+
+const reportUnsupported = (request: LocalGenerationRequest, error: LocalGenerationUnsupportedError) => {
+  request.onStatus?.({ stage: 'unsupported', detail: error.message })
+  return error
+}
+
+// Loads the engine. If the default half-precision build fails to compile on
+// this GPU, the full-precision build of the same model gets one try.
+const startEngine = async (
+  initialModelId: string,
+  request: LocalGenerationRequest,
+): Promise<{ activeEngine: WebWorkerMLCEngine; modelId: string }> => {
+  try {
+    const activeEngine = await abortable(loadEngine(initialModelId, request.onStatus), request.signal)
+    return { activeEngine, modelId: initialModelId }
+  } catch (error) {
+    const canFallBack =
+      initialModelId === LOCAL_MODEL_ID
+      && !request.signal?.aborted
+      && !(error instanceof LocalGenerationCancelledError)
+      && classifyLocalAiFailure(error, 'start').tryCompatibilityModel
+    if (!canFallBack) {
+      throw error
+    }
+
+    request.onStatus?.({
+      stage: 'downloading',
+      detail: `This GPU could not run ${initialModelId}. Trying ${LOCAL_COMPATIBILITY_MODEL_ID}ΓÇª`,
+      progress: 0,
+    })
+    const activeEngine = await abortable(loadEngine(LOCAL_COMPATIBILITY_MODEL_ID, request.onStatus), request.signal)
+    preferCompatibilityModel = true
+    return { activeEngine, modelId: LOCAL_COMPATIBILITY_MODEL_ID }
+  }
 }
 
 // Runs one completion, trying JSON mode first. If the engine throws while JSON
@@ -206,7 +345,7 @@ export const generateCardsLocally = async (
   let phase: LocalAiFailurePhase = 'start'
 
   request.signal?.addEventListener('abort', cancel, { once: true })
-  request.onStatus?.({ stage: 'checking', detail: 'Checking this browser for WebGPU…' })
+  request.onStatus?.({ stage: 'checking', detail: 'Checking this browser for WebGPUΓÇª' })
 
   try {
     throwIfCancelled(request.signal)
@@ -225,7 +364,7 @@ export const generateCardsLocally = async (
       )
     }
 
-    const activeEngine = await loadEngine(request.onStatus, request.signal)
+    const { activeEngine, modelId } = await startEngine(chooseModelId(report), request)
     throwIfCancelled(request.signal)
     phase = 'run'
     request.onStatus?.({ stage: 'ready', detail: `${modelId} is ready on this device.` })
@@ -238,26 +377,23 @@ export const generateCardsLocally = async (
       request.onStatus?.({
         stage: 'generating',
         detail: attempt === 0
-          ? 'Generating cards locally in your browser…'
-          : `Checking another local response (${attempt + 1} of ${MAX_REGENERATION_RETRIES + 1})…`,
+          ? 'Generating cards locally in your browserΓÇª'
+          : `Checking another local response (${attempt + 1} of ${MAX_REGENERATION_RETRIES + 1})ΓÇª`,
       })
-      const completion = await awaitWithCancellation(
-        createCompletion(
-          activeEngine,
-          {
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You create precise study cards using only the provided source text and return valid JSON.',
-              },
-              { role: 'user', content: buildLocalGenerationPrompt(request.chunks, requestedCount) },
-            ],
-            temperature: 0.15,
-            max_tokens: 1_200,
-          },
-          request.signal,
-        ),
+      const completion = await createCompletion(
+        activeEngine,
+        {
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You create precise study cards using only the provided source text and return valid JSON.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: ATTEMPT_TEMPERATURES[Math.min(attempt, ATTEMPT_TEMPERATURES.length - 1)],
+          max_tokens: 1_200,
+        },
         request.signal,
       )
       throwIfCancelled(request.signal)
