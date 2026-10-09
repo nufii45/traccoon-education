@@ -1,0 +1,199 @@
+/* Ingredient celebration pop-up. Tokens from themes.ts. */
+
+.dialog {
+  width: min(440px, calc(100% - 32px));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--color-neutral);
+}
+
+.dialog::backdrop {
+  background: var(--color-overlay);
+  animation: fade-in 200ms ease-out;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  border: 2px solid var(--color-neutral);
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 22%, var(--color-warning-surface) 0, var(--color-surface) 62%);
+  box-shadow: var(--shadow-floating);
+  text-align: center;
+  isolation: isolate;
+  animation: card-pop 480ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 200px;
+  height: 200px;
+  margin-top: calc(var(--space-12) * -1.5);
+}
+
+.burst {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgb(255 239 90 / 70%) 0 32%, transparent 62%),
+    repeating-conic-gradient(rgb(229 169 60 / 38%) 0 10deg, transparent 10deg 22.5deg);
+  animation: burst-spin 9s linear infinite, burst-in 520ms ease-out both;
+}
+
+.icon {
+  position: relative;
+  filter: drop-shadow(0 12px 10px rgb(130 88 42 / 22%));
+  animation: icon-bounce 900ms cubic-bezier(0.3, 1.6, 0.5, 1) 120ms both;
+}
+
+.eyebrow {
+  margin: var(--space-2) 0 0;
+  color: var(--color-primary);
+  font: var(--font-weight-extrabold) var(--text-label) var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font: var(--font-weight-extrabold) var(--text-title) / 1.15 var(--font-sans);
+  letter-spacing: var(--letter-spacing-compact);
+}
+
+.copy,
+.recipes {
+  max-width: 340px;
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+.recipes {
+  font-size: var(--text-label);
+}
+
+.action {
+  min-width: 200px;
+  margin-top: var(--space-4);
+}
+
+.confetti {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  width: 0;
+  z-index: -1;
+  height: 0;
+  pointer-events: none;
+}
+
+.piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  animation: confetti-burst var(--duration) cubic-bezier(0.15, 0.7, 0.4, 1) var(--delay) forwards;
+}
+
+.square {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.strip {
+  width: 6px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.round {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+@keyframes confetti-burst {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(var(--dx), var(--dy)) rotate(calc(var(--spin) * 0.4)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--dx) * 1.25), calc(var(--dy) + var(--fall))) rotate(var(--spin)) scale(0.9);
+  }
+}
+
+@keyframes card-pop {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.85);
+  }
+}
+
+@keyframes icon-bounce {
+  0% {
+    transform: scale(0.2) rotate(-18deg);
+  }
+  60% {
+    transform: scale(1.12) rotate(6deg);
+  }
+}
+
+@keyframes burst-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes burst-in {
+  from {
+    opacity: 0;
+    scale: 0.3;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog::backdrop,
+  .card,
+  .icon,
+  .burst {
+    animation: none;
+  }
+
+  .confetti {
+    display: none;
+  }
+}
+
+@media (max-width: 599px) {
+  .title {
+    font-size: var(--text-heading);
+  }
+
+  .art {
+    width: 168px;
+    height: 168px;
+  }
+}
