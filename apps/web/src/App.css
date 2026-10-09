@@ -792,8 +792,43 @@ select:focus-visible {
   margin-bottom: var(--space-2);
 }
 
+fieldset.manual-options {
+  padding: 0;
+  border: 0;
+}
+
+fieldset.manual-options legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.kept-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.local-badge.edited {
+  background: var(--color-neutral);
+  color: var(--color-white);
+}
+
 .manual-options input:not([type='radio']) {
   min-height: 40px;
+  padding: var(--space-1) 0;
+  border: 0;
+  background: transparent;
+}
+
+/* The whole option row shows focus, so inner fields can stay borderless. */
+.option:focus-within,
+.manual-options label:focus-within {
+  border-color: var(--color-focus);
+}
+
+.option input:not([type='radio']):focus-visible,
+.manual-options input:not([type='radio']):focus-visible {
+  outline: none;
 }
 
 .manual-source-fields {

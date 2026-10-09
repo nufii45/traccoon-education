@@ -90,6 +90,16 @@ describe('StudySession', () => {
     expect(screen.getByText('Saved quote from page 11')).toBeInTheDocument()
   })
 
+  it('hides the source view for a manual card with no source', () => {
+    const manual = { ...TEST_CARDS[0], sourcePage: 0, sourceQuote: '', sourceChunkId: '', generationMethod: 'manual' as const }
+    render(
+      <StudySession cards={[manual]} onAttempt={vi.fn().mockResolvedValue(undefined)} onBack={vi.fn()} sourceName="Written by hand" sourcePages={[]} />,
+    )
+    expect(screen.getByText(/No source · Manual/)).toBeInTheDocument()
+    answer(/Cytoplasm/)
+    expect(screen.queryByRole('button', { name: /See source/ })).toBeNull()
+  })
+
   it('tells the learner when an attempt fails to save', async () => {
     renderSession(vi.fn().mockRejectedValue(new Error('quota')))
     answer(/Cytoplasm/)
