@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { validateGeneratedCard } from './features/local-ai/cardRules'
 import { chunkSourcePages, selectSourcePages } from './features/local-ai/chunks'
 import {
@@ -11,6 +11,7 @@ import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/polic
 import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
+import { ModelReadinessPanel } from './features/pantries/ModelReadinessPanel'
 import { groupPantriesByRecency, isManualPantry } from './features/pantries/pantryGroups'
 import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
 import { PdfPagePicker } from './features/pantries/PdfPagePicker'
@@ -51,6 +52,9 @@ function App() {
   const [activePantry, setActivePantry] = useState<Pantry>()
   const [showManualStarter, setShowManualStarter] = useState(false)
   const [error, setError] = useState<string>()
+  // Each PDF-import request remounts the import view and opens the file picker.
+  const [importSession, setImportSession] = useState(0)
+  const [shouldOpenFilePicker, setShouldOpenFilePicker] = useState(false)
   const pantryGroups = groupPantriesByRecency(summaries)
   const showGroupLabels = pantryGroups.length > 1
 
@@ -103,12 +107,15 @@ function App() {
     setActivePantry(undefined)
     setShowManualStarter(false)
     setError(undefined)
+    setImportSession((current) => current + 1)
+    setShouldOpenFilePicker(true)
     setView('import')
   }
 
   const startManualAuthoring = () => {
     setActivePantry(undefined)
     setShowManualStarter(true)
+    setShouldOpenFilePicker(false)
     setError(undefined)
     setView('import')
   }
@@ -137,7 +144,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={activePantry && view === 'study' ? 'app-shell is-studying' : 'app-shell'}>
       <aside className="sidebar" aria-label="Pantries">
         <button className="brand" onClick={goHome} type="button">
           <img alt="" className="brand-mark" height="40" src={rokkiMark} width="40" />
@@ -205,7 +212,9 @@ function App() {
             />
           ) : (
             <ImportWorkspace
+              key={importSession}
               onError={setError}
+              openFilePickerOnMount={shouldOpenFilePicker}
               onPantryCreated={async (id) => {
                 await refreshPantries()
                 await openPantry(id)
@@ -232,11 +241,14 @@ function ImportWorkspace({
   onError,
   onPantryCreated,
   onStartManual,
+  openFilePickerOnMount,
 }: {
   onError: (message: string | undefined) => void
   onPantryCreated: (id: string) => Promise<void>
   onStartManual: () => void
+  openFilePickerOnMount: boolean
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [title, setTitle] = useState('')
   const [sourceName, setSourceName] = useState('')
   const [pdfSource, setPdfSource] = useState<PdfSource>()
@@ -251,6 +263,18 @@ function ImportWorkspace({
     importRequest.current += 1
     void sourceRef.current?.destroy()
   }, [])
+
+  // Runs in the same task as the "Create from a PDF" click, so the browser
+  // still treats opening the file picker as user-initiated. If the learner
+  // cancels it, this view stays as the fallback. The ref keeps StrictMode's
+  // development double-mount from opening a second picker.
+  const hasOpenedFilePicker = useRef(false)
+  useLayoutEffect(() => {
+    if (openFilePickerOnMount && !hasOpenedFilePicker.current) {
+      hasOpenedFilePicker.current = true
+      fileInputRef.current?.click()
+    }
+  }, [openFilePickerOnMount])
 
   const onFileSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -309,10 +333,8 @@ function ImportWorkspace({
   }
 
   return (
-    <section className="welcome-workspace">
-      <div className="eyebrow"><span /> LOCAL PRIVATE STUDY STUDIO</div>
-      <h1>Study from your source. <em>Locally.</em></h1>
-      <p className="hero-copy">Turn a few pages of a text-based PDF into reviewable cards without sending the document to a server.</p>
+    <section className="welcome-workspace import-workspace">
+      <h1>Import a PDF</h1>
 
       <div className="privacy-callout">
         <strong>Your material stays here.</strong>
@@ -322,7 +344,7 @@ function ImportWorkspace({
       <div className="import-panel">
         <div className="step-label">01 / BRING A SOURCE</div>
         <label className="file-drop" htmlFor="pdf-file">
-          <input accept="application/pdf,.pdf" aria-label="Choose a PDF" id="pdf-file" onChange={(event) => void onFileSelected(event)} type="file" />
+          <input accept="application/pdf,.pdf" aria-label="Choose a PDF" id="pdf-file" ref={fileInputRef} onChange={(event) => void onFileSelected(event)} type="file" />
           <span className="file-icon"><Icon icon={FileUploadIcon} size={32} /></span>
           <strong>{isReading ? 'Reading local PDF…' : sourceName || 'Choose a PDF'}</strong>
           <small>{sourceName ? `${sourcePages.length} text pages found` : 'Text-based PDF only. Scanned PDFs need OCR, which is not in this demo.'}</small>
@@ -492,6 +514,12 @@ function PantryWorkspace({
 
   return (
     <section className="workspace">
+      {showStudy ? (
+        <header className="workspace-header studying">
+          <div className="eyebrow"><span /> STUDYING</div>
+          <h1>{pantry.title}</h1>
+        </header>
+      ) : (
       <header className="workspace-header">
         <div>
           <div className="eyebrow"><span /> LOCAL PANTRY</div>
@@ -514,8 +542,9 @@ function PantryWorkspace({
           <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button"><Icon icon={Delete02Icon} />Delete pantry</button>
         </div>
       </header>
+      )}
 
-      {confirmingDeletion ? (
+      {confirmingDeletion && !showStudy ? (
         <div className="delete-confirmation" role="alert">
           <span>Delete this pantry, its source text, cards, and answer attempts from this browser?</span>
           <div>
@@ -552,9 +581,12 @@ function PantryWorkspace({
                 <div className="step-label">02 / MAKE A SMALL BATCH</div>
                 <h2>Generate up to {MAX_CARDS_PER_RUN} reviewable cards</h2>
               </div>
-              <span className={`model-status ${generationStatus.stage}`}>{generationStatus.stage.replace('-', ' ')}</span>
+              {generationStatus.stage !== 'idle' ? (
+                <span className={`model-status ${generationStatus.stage}`}>{generationStatus.stage.replace('-', ' ')}</span>
+              ) : null}
             </div>
-            <p className="panel-copy">WebLLM runs in a worker on this browser when WebGPU is ready. Every suggestion must pass a local source-quote check before you can keep it.</p>
+            <p className="panel-copy">Runs in this browser on this laptop. Nothing is uploaded. Each suggestion must match a quote on its page before you can keep it.</p>
+            <ModelReadinessPanel status={generationStatus} />
             <fieldset className="page-picker compact">
               <legend>Source pages</legend>
               <div className="page-options">
