@@ -20,9 +20,6 @@
 
 .rokki {
   width: 112px;
-  height: 112px;
-  object-fit: contain;
-  animation: rokkiArrive 500ms ease-out both;
 }
 
 .eyebrow,
@@ -274,7 +271,7 @@
 @media (max-width: 560px) {
   .results { gap: var(--space-4); }
   .hero { padding: var(--space-4); }
-  .rokki { width: 88px; height: 88px; }
+  .rokki { width: 88px; }
   .rewardHeader { align-items: start; flex-direction: column; gap: var(--space-1); }
   .reviewHeader { align-items: start; }
   .actions { display: grid; }

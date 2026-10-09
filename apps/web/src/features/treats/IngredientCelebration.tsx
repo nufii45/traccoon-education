@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, type CSSProperties, type MouseEvent, type Syn
 import { ingredientById, TREAT_RECIPES } from './catalog'
 import type { IngredientId } from './catalog'
 import { IngredientIcon } from './TreatArt'
+import { InteractiveRokki } from '../../components/InteractiveRokki'
+import rokkiCards from '../../assets/rokki/rokki-cards.webp'
 import styles from './IngredientCelebration.module.css'
 
 const CONFETTI_COLORS = ['#E5A93C', '#8D6748', '#E9B58F', '#13703A', '#2346C8', '#BE2A1E', '#FFEF5A', '#F5EFEB']
@@ -88,6 +90,13 @@ export function IngredientCelebration({ ingredientId, onClose }: IngredientCeleb
           </div>
           <p className={styles.eyebrow}>Ingredient found!</p>
           <h2 className={styles.title} id={titleId}>You found {ingredient.name}!</h2>
+          <InteractiveRokki
+            imageAlt=""
+            interactive={false}
+            src={rokkiCards}
+            state="celebrating"
+            width={88}
+          />
           <p className={styles.copy}>+1 {ingredient.name} is on your Treat Shelf.</p>
           {recipes.length > 0 ? <p className={styles.recipes}>Goes into {recipes.join(', ')}.</p> : null}
           <button autoFocus className={`primary-button ${styles.action}`} onClick={onClose} type="button">Keep going</button>

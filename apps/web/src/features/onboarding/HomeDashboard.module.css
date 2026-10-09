@@ -83,12 +83,10 @@
 .rokki {
   display: grid;
   justify-items: center;
+  align-content: center;
   margin: 0;
-}
-
-.rokki img {
-  width: min(200px, 70%);
-  height: auto;
+  /* Generous whitespace so the idle float and hover tilt never clip. */
+  padding: var(--space-4);
 }
 
 /* ---------- Action cards ---------- */

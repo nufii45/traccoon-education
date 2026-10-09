@@ -1,4 +1,6 @@
+import { InteractiveRokki } from '../../components/InteractiveRokki'
 import { RokkiLoader } from '../../components/RokkiLoader/RokkiLoader'
+import rokkiCards from '../../assets/rokki/rokki-cards.webp'
 import type { LocalAiStatus } from '../local-ai/localAiClient'
 import type { GenerationView } from './generationStages'
 import { StageProgress } from './StageProgress'
@@ -26,13 +28,26 @@ export function GenerationExperience({
 
   return (
     <div className={styles.stage} data-complete={isComplete ? 'true' : undefined}>
-      <RokkiLoader
-        announce={false}
-        mode="generating"
-        progress={downloadProgress}
-        showLabel={false}
-        size="md"
-      />
+      {isComplete ? (
+        // Celebrate only after the pipeline genuinely reports completion with
+        // verified cards. Decorative: the heading below conveys the result to
+        // assistive technology, so this mascot stays silent and non-interactive.
+        <InteractiveRokki
+          imageAlt=""
+          interactive={false}
+          src={rokkiCards}
+          state="celebrating"
+          width={172}
+        />
+      ) : (
+        <RokkiLoader
+          announce={false}
+          mode="generating"
+          progress={downloadProgress}
+          showLabel={false}
+          size="md"
+        />
+      )}
 
       <div className={styles.copy}>
         <h3 className={styles.heading}>

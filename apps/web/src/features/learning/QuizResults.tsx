@@ -6,6 +6,7 @@ import type { SourcePage } from '../local-ai/types'
 import { ingredientById } from '../treats/catalog'
 import type { IngredientId } from '../treats/catalog'
 import { IngredientIcon } from '../treats/TreatArt'
+import { InteractiveRokki } from '../../components/InteractiveRokki'
 import { SourceView } from '../study/SourceView'
 import styles from './QuizResults.module.css'
 
@@ -56,7 +57,14 @@ export function QuizResults({
   return (
     <section aria-labelledby="quiz-results-heading" className={styles.results}>
       <header className={styles.hero}>
-        <img alt="" aria-hidden="true" className={styles.rokki} height="112" src="/assets/rokki/rokki-classic.svg" width="112" />
+        <InteractiveRokki
+          className={styles.rokki}
+          imageAlt=""
+          interactive={false}
+          src="/assets/rokki/rokki-classic.svg"
+          state={hasPerfectScore ? 'celebrating' : 'idle'}
+          width={112}
+        />
         <p className={styles.eyebrow}>Quiz complete</p>
         <h1 id="quiz-results-heading" ref={headingRef} tabIndex={-1}>Session complete!</h1>
         <p className={styles.encouragement}>{encouragement.title}</p>

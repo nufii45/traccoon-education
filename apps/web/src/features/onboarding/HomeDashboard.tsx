@@ -5,6 +5,7 @@ import {
   SquareLock02Icon,
 } from '@hugeicons/core-free-icons'
 import { Icon } from '../../components/Icon/Icon'
+import { InteractiveRokki } from '../../components/InteractiveRokki'
 import rokkiChoice from '../../assets/rokki/rokki-choice.webp'
 import rokkiWelcome from '../../assets/rokki/rokki-welcome.webp'
 import type { PantrySummary } from '../pantries/repository'
@@ -54,16 +55,23 @@ export function HomeDashboard({
             Welcome back. <em>What are we studying?</em>
           </h1>
           <p className={styles.lede}>
-            Turn a few pages of your own PDF into source-linked cards, or write a set by hand. Your
-            material and progress stay on this device.
+            Meet Rokki, your learning companion. From making study cards to celebrating your
+            progress, Rokki is here to make learning a little more fun — and your material and
+            progress stay on this device.
           </p>
           <p className={styles.modeChip}>
             <Icon icon={SquareLock02Icon} size={16} /> No account required
           </p>
         </div>
-        <figure className={styles.rokki}>
-          <img alt="Rokki welcomes you back" src={rokkiWelcome} />
-        </figure>
+        <div className={styles.rokki}>
+          <InteractiveRokki
+            actionLabel="Say hello to Rokki, then start a new study set"
+            imageAlt="Rokki welcomes you back"
+            onActivate={onCreateFromPdf}
+            src={rokkiWelcome}
+            width={200}
+          />
+        </div>
       </header>
 
       <div className={styles.actions}>
@@ -110,10 +118,13 @@ export function HomeDashboard({
 
         {isEmpty ? (
           <div className={styles.emptyState}>
-            <img
-              alt="Rokki is ready to help choose a study path"
+            <InteractiveRokki
+              actionLabel="Rokki is ready — create your first study set"
               className={styles.emptyMark}
+              imageAlt="Rokki is ready to help choose a study path"
+              onActivate={onCreateFromPdf}
               src={rokkiChoice}
+              width={120}
             />
             <div>
               <h3>Your pantry is empty — for now.</h3>
