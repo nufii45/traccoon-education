@@ -18,12 +18,9 @@ browser because the local model path uses WebGPU.
    layouts for the demo.
 3. Select one page, create the pantry, then choose **Generate local cards**.
 4. The first attempt checks WebGPU, downloads
-   `Qwen2.5-0.5B-Instruct-q4f16_1-MLC` into browser-managed storage, and
-   shows progress in the green generation panel. On a GPU without
-   `shader-f16` support, or one that cannot compile the half-precision build,
-   the app downloads the full-precision build of the same model,
-   `Qwen2.5-0.5B-Instruct-q4f32_1-MLC`, instead. The status line names the
-   build in use; record it in the demo evidence.
+   `Qwen3.5-4B-q4f16_1-MLC` into browser-managed storage, and shows progress
+   in the green generation panel. The model requires about 3.87 GB of GPU
+   memory, so use the demo Mac rather than a phone or low-memory machine.
 5. Keep one source-linked card. If WebGPU or the model is unavailable, the app
    keeps the source unchanged and directs the learner to manual authoring.
 
@@ -35,8 +32,8 @@ inference endpoint.
 
 1. Open the app and point out **Local Private mode** in the sidebar.
 2. Import a text-based PDF and choose one to three pages deliberately.
-3. Generate up to three cards. Show the model-progress state or the clearly
-   labelled local model state. If the runtime is unavailable, use the manual
+3. Generate up to three cards. Show the model-progress state or the local model
+   status. If the runtime is unavailable, use the manual
    authoring path rather than presenting synthetic generated cards.
 4. Open a candidate card. Show its source page and exact quote, edit one field
    if useful, and keep the card.

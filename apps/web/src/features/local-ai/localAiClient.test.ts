@@ -3,6 +3,7 @@ import { chunkSourcePages } from './chunks'
 import {
   formatGenerationDiagnostics,
   generateCardsLocally,
+  LocalGenerationCancelledError,
   LocalGenerationOutputError,
   LocalGenerationUnsupportedError,
   releaseLocalModel,
@@ -12,16 +13,17 @@ import type { SourcePage } from './types'
 
 const engineMock = vi.hoisted(() => ({
   create: vi.fn(),
+  createEngine: vi.fn(),
   interruptGenerate: vi.fn(),
   unload: vi.fn(async () => undefined),
 }))
 
-vi.mock('@mlc-ai/web-llm', () => ({
-  CreateWebWorkerMLCEngine: vi.fn(async () => ({
-    chat: { completions: { create: engineMock.create } },
-    interruptGenerate: engineMock.interruptGenerate,
-    unload: engineMock.unload,
-  })),
+const runtimeMock = vi.hoisted(() => ({
+  load: vi.fn(),
+}))
+
+vi.mock('./webLlmRuntime', () => ({
+  loadWebLlm: runtimeMock.load,
 }))
 
 afterEach(() => {
@@ -81,7 +83,20 @@ describe('generateCardsLocally with a local engine', () => {
   const completion = (content: string) => ({ choices: [{ message: { content } }] })
 
   beforeEach(() => {
+    runtimeMock.load.mockReset()
+    runtimeMock.load.mockResolvedValue({
+      CreateWebWorkerMLCEngine: engineMock.createEngine,
+    })
     engineMock.create.mockReset()
+    engineMock.createEngine.mockReset()
+    engineMock.createEngine.mockResolvedValue({
+      chat: { completions: { create: engineMock.create } },
+      interruptGenerate: engineMock.interruptGenerate,
+      unload: engineMock.unload,
+    })
+    engineMock.interruptGenerate.mockReset()
+    engineMock.unload.mockReset()
+    engineMock.unload.mockResolvedValue(undefined)
     vi.stubGlobal('Worker', class { terminate() {} })
     Object.defineProperty(navigator, 'gpu', { value: {}, configurable: true })
   })
@@ -89,6 +104,49 @@ describe('generateCardsLocally with a local engine', () => {
   afterEach(async () => {
     await releaseLocalModel()
     Reflect.deleteProperty(navigator, 'gpu')
+  })
+
+  it('settles cancellation while the WebLLM runtime is loading', async () => {
+    const controller = new AbortController()
+    const onStatus = vi.fn()
+    const terminate = vi.fn()
+    let markRuntimeStarted: () => void = () => undefined
+    let resolveRuntime: (runtime: { CreateWebWorkerMLCEngine: typeof engineMock.createEngine }) => void = () => undefined
+    const runtimeStarted = new Promise<void>((resolve) => {
+      markRuntimeStarted = resolve
+    })
+    const runtimeLoaded = new Promise<{ CreateWebWorkerMLCEngine: typeof engineMock.createEngine }>((resolve) => {
+      resolveRuntime = resolve
+    })
+    class TestWorker {
+      terminate = terminate
+    }
+
+    vi.stubGlobal('Worker', TestWorker)
+    runtimeMock.load.mockImplementation(() => {
+      markRuntimeStarted()
+      return runtimeLoaded
+    })
+
+    const generation = generateCardsLocally({
+      chunks,
+      sourcePages,
+      onStatus,
+      signal: controller.signal,
+    })
+
+    await runtimeStarted
+    controller.abort()
+
+    await expect(generation).rejects.toBeInstanceOf(LocalGenerationCancelledError)
+    expect(terminate).not.toHaveBeenCalled()
+    expect(engineMock.createEngine).not.toHaveBeenCalled()
+    expect(onStatus).toHaveBeenLastCalledWith({
+      stage: 'cancelled',
+      detail: 'Local generation was cancelled. Your source stayed unchanged.',
+    })
+
+    resolveRuntime({ CreateWebWorkerMLCEngine: engineMock.createEngine })
   })
 
   it('reports reason codes and counts without learner content when every response is rejected', async () => {
@@ -167,6 +225,84 @@ describe('generateCardsLocally with a local engine', () => {
     expect(engineMock.create).toHaveBeenCalledTimes(2)
     expect(engineMock.create.mock.calls[0][0]).toHaveProperty('response_format')
     expect(engineMock.create.mock.calls[1][0]).not.toHaveProperty('response_format')
+  })
+
+  it('initializes Qwen 3.5 4B for local card generation', async () => {
+    engineMock.create.mockResolvedValueOnce(completion(JSON.stringify({ cards: [goodCard] })))
+
+    await generateCardsLocally({ chunks, sourcePages, requestedCount: 1 })
+
+    expect(engineMock.createEngine).toHaveBeenCalledWith(
+      expect.anything(),
+      'Qwen3.5-4B-q4f16_1-MLC',
+      expect.anything(),
+    )
+  })
+
+  it('settles cancellation while local-model initialization is pending', async () => {
+    const controller = new AbortController()
+    const onStatus = vi.fn()
+    const terminate = vi.fn()
+    let markEngineStarted: () => void = () => undefined
+    const engineStarted = new Promise<void>((resolve) => {
+      markEngineStarted = resolve
+    })
+    class TestWorker {
+      terminate = terminate
+    }
+
+    vi.stubGlobal('Worker', TestWorker)
+    engineMock.createEngine.mockImplementation(() => {
+      markEngineStarted()
+      return new Promise(() => undefined)
+    })
+
+    const generation = generateCardsLocally({
+      chunks,
+      sourcePages,
+      onStatus,
+      signal: controller.signal,
+    })
+
+    await engineStarted
+    controller.abort()
+
+    await expect(generation).rejects.toBeInstanceOf(LocalGenerationCancelledError)
+    expect(terminate).toHaveBeenCalledOnce()
+    expect(onStatus).toHaveBeenLastCalledWith({
+      stage: 'cancelled',
+      detail: 'Local generation was cancelled. Your source stayed unchanged.',
+    })
+  })
+
+  it('settles cancellation while local-model generation is pending', async () => {
+    const controller = new AbortController()
+    const onStatus = vi.fn()
+    let markCompletionStarted: () => void = () => undefined
+    const completionStarted = new Promise<void>((resolve) => {
+      markCompletionStarted = resolve
+    })
+    engineMock.create.mockImplementation(() => {
+      markCompletionStarted()
+      return new Promise(() => undefined)
+    })
+
+    const generation = generateCardsLocally({
+      chunks,
+      sourcePages,
+      onStatus,
+      signal: controller.signal,
+    })
+
+    await completionStarted
+    controller.abort()
+
+    await expect(generation).rejects.toBeInstanceOf(LocalGenerationCancelledError)
+    expect(engineMock.interruptGenerate).toHaveBeenCalledOnce()
+    expect(onStatus).toHaveBeenLastCalledWith({
+      stage: 'cancelled',
+      detail: 'Local generation was cancelled. Your source stayed unchanged.',
+    })
   })
 })
 
