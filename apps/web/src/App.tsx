@@ -10,10 +10,10 @@ import {
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
 import type { GeneratedCard } from './features/local-ai/types'
 import { KeptCard } from './features/pantries/KeptCard'
-import { GenerationLoader } from './features/pantries/GenerationLoader'
-import { GenerationProgress } from './features/pantries/GenerationProgress'
+import { GenerationExperience } from './features/pantries/GenerationExperience'
+import { ModelStatusRow } from './features/pantries/ModelStatusRow'
+import { deriveGenerationView, isGenerationBusy } from './features/pantries/generationStages'
 import { ManualCardForm } from './features/pantries/ManualCardForm'
-import { ModelReadinessPanel } from './features/pantries/ModelReadinessPanel'
 import { loadPdfSource, type PdfSource } from './features/pantries/pdfText'
 import { PdfPagePicker } from './features/pantries/PdfPagePicker'
 import { ReviewCard } from './features/pantries/ReviewCard'
@@ -63,10 +63,31 @@ const studyButtonLabel = (cardCount: number) =>
     ? `Study ${practiceRoundLength(cardCount)} of ${cardCount} cards`
     : `Study ${cardCount} ${cardCount === 1 ? 'card' : 'cards'}`
 
-const isGenerationWorking = (status: LocalAiStatus) =>
-  status.stage === 'checking' || status.stage === 'downloading' || status.stage === 'generating'
-
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
+
+/** The merged Step 02 sub-view: choose pages, watch Rokki work, then review. */
+type BatchView = 'select' | 'generating' | 'review'
+
+// A short success beat so the filled five-segment indicator registers before
+// the review cards replace it. Not an artificial progress delay.
+const SUCCESS_TRANSITION_MS = 650
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/** Student-facing failure copy for each non-working stop state. */
+const failureMessage = (
+  phase: 'failed' | 'unsupported' | 'cancelled',
+  detail: string,
+): string => {
+  switch (phase) {
+    case 'unsupported':
+      return detail || 'This device can’t run the selected on-device AI model.'
+    case 'cancelled':
+      return 'Generation was cancelled. Your source pages are unchanged.'
+    default:
+      return detail || 'Rokki couldn’t finish your cards. Please try again.'
+  }
+}
 
 /** Root component: real URLs via the browser history. */
 function App() {
@@ -413,6 +434,8 @@ function PantryWorkspace({
   const [selectedPages, setSelectedPages] = useState<number[]>(() => pantry.sourcePages.slice(0, MAX_SELECTED_PAGES).map((page) => page.pageNumber))
   const [candidates, setCandidates] = useState<GeneratedCard[]>([])
   const [generationStatus, setGenerationStatus] = useState<LocalAiStatus>({ stage: 'idle', detail: 'Ready when you are.' })
+  // The merged Step 02 view: pick pages, watch Rokki work, then review.
+  const [batchView, setBatchView] = useState<BatchView>('select')
   const [showManualAuthor, setShowManualAuthor] = useState(false)
   const [confirmingDeletion, setConfirmingDeletion] = useState(false)
   const hasPdfSource = pantry.sourcePages.length > 0
@@ -431,9 +454,24 @@ function PantryWorkspace({
   }, [pantry.id])
   const [generationController, setGenerationController] = useState<AbortController>()
 
+  // The five-stage view is derived from the real status plus whether
+  // review-ready cards exist, so segments never advance ahead of the pipeline.
+  const generationView = deriveGenerationView(generationStatus, candidates.length > 0)
+
+  // Returns to page selection without carrying broken generation state. Page
+  // selections are preserved so an error or cancel does not lose the choice.
+  const returnToSelection = () => {
+    setBatchView('select')
+    setCandidates([])
+    setGenerationStatus({ stage: 'idle', detail: 'Ready when you are.' })
+  }
+
   const generate = async () => {
     const controller = new AbortController()
     setGenerationController(controller)
+    setCandidates([])
+    setBatchView('generating')
+    setGenerationStatus({ stage: 'checking', detail: 'Checking this browser for WebGPU…' })
 
     try {
       const pages = selectSourcePages(pantry.sourcePages, selectedPages)
@@ -444,9 +482,30 @@ function PantryWorkspace({
         onStatus: setGenerationStatus,
         signal: controller.signal,
       })
+      if (controller.signal.aborted) {
+        return
+      }
+      if (result.cards.length === 0) {
+        // A run that produced nothing valid is a retryable failure, not a
+        // reason to open an empty review screen.
+        setGenerationStatus({ stage: 'error', detail: 'Rokki couldn’t verify the generated questions against your pages.' })
+        return
+      }
       setCandidates(result.cards)
+      // A brief success beat so the filled segments read before review opens.
+      await delay(SUCCESS_TRANSITION_MS)
+      if (!controller.signal.aborted) {
+        setBatchView('review')
+      }
     } catch (reason) {
-      if (reason instanceof LocalGenerationCancelledError || reason instanceof LocalGenerationUnsupportedError) {
+      if (reason instanceof LocalGenerationCancelledError) {
+        // Cancellation keeps the page selection and returns to the picker.
+        returnToSelection()
+        return
+      }
+      if (reason instanceof LocalGenerationUnsupportedError) {
+        // Status already carries the unsupported message; stay on the loader
+        // so the compatibility guidance and retry are visible.
         return
       }
       setGenerationStatus({
@@ -479,6 +538,7 @@ function PantryWorkspace({
     }
 
     await pantryRepository.saveCards(pantry.id, [card])
+    setGenerationStatus({ stage: 'idle', detail: 'Ready when you are.' })
     setCandidates((current) => current.filter((candidate) => candidate.id !== card.id))
     await onPantryChange()
   }
@@ -533,58 +593,107 @@ function PantryWorkspace({
                 <div className="step-label">02 / MAKE A SMALL BATCH</div>
                 <h2>Generate up to {MAX_CARDS_PER_RUN} reviewable cards</h2>
               </div>
-              {generationStatus.stage !== 'idle' ? (
-                <span className={`model-status ${generationStatus.stage}`}>{generationStatus.stage.replace('-', ' ')}</span>
-              ) : null}
             </div>
-            <p className="panel-copy">Runs in this browser on this laptop. Nothing is uploaded. Each suggestion must match a quote on its page before you can keep it.</p>
-            <ModelReadinessPanel status={generationStatus} />
-            <fieldset className="page-picker compact">
-              <legend>Source pages</legend>
-              <div className="page-options">
-                {pantry.sourcePages.map((page) => (
-                  <label key={page.id}>
-                    <input checked={selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} type="checkbox" />
-                    <span>p. {page.pageNumber}</span>
-                  </label>
-                ))}
+
+            {batchView === 'select' ? (
+              <>
+                <p className="panel-copy">Runs in this browser on this laptop. Nothing is uploaded. Each suggestion must match a quote on its page before you can keep it.</p>
+                <ModelStatusRow status={generationStatus} />
+                <fieldset className="page-picker compact">
+                  <legend>Source pages</legend>
+                  <div className="page-options">
+                    {pantry.sourcePages.map((page) => (
+                      <label key={page.id}>
+                        <input checked={selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} type="checkbox" />
+                        <span>p. {page.pageNumber}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                {generationStatus.stage === 'error' ? (
+                  <p className="form-error" role="alert">{generationStatus.detail}</p>
+                ) : null}
+                <div className="generation-actions">
+                  <button
+                    className="primary-button"
+                    disabled={selectedPages.length === 0 || isGenerationBusy(generationStatus)}
+                    onClick={() => void generate()}
+                    type="button"
+                  >
+                    Generate my study cards <Icon icon={ArrowRight02Icon} />
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            {batchView === 'generating' ? (
+              <div className="generation-loader">
+                {generationView.phase === 'failed'
+                || generationView.phase === 'unsupported'
+                || generationView.phase === 'cancelled' ? (
+                  <div className="generation-failure" role="alert">
+                    <p>{failureMessage(generationView.phase, generationStatus.detail)}</p>
+                    <div className="generation-actions">
+                      <button className="primary-button" onClick={() => void generate()} type="button">Try again</button>
+                      <button className="secondary-button" onClick={returnToSelection} type="button">Back to pages</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <GenerationExperience status={generationStatus} view={generationView} />
+                    {generationController ? (
+                      <div className="generation-actions generation-actions-centered">
+                        <button className="secondary-button" onClick={() => generationController.abort()} type="button">Cancel</button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
-            </fieldset>
-            <div className="generation-actions">
-              <button className="primary-button" disabled={selectedPages.length === 0 || generationStatus.stage === 'downloading' || generationStatus.stage === 'generating'} onClick={() => void generate()} type="button">
-                {generationStatus.stage === 'downloading' || generationStatus.stage === 'generating' ? 'Working locally…' : 'Generate local cards'}
-              </button>
-              {generationController ? <button className="secondary-button" onClick={() => generationController.abort()} type="button">Cancel</button> : null}
-              <GenerationProgress status={generationStatus} />
-            </div>
+            ) : null}
           </section>
 
+          {batchView === 'review' ? (
           <section className="card-section">
             <div className="section-heading">
               <div>
-                <div className="step-label">03 / REVIEW BEFORE KEEPING</div>
+                <div className="step-label">03 / REVIEW YOUR CARDS</div>
                 <h2>Suggested cards</h2>
               </div>
               <span>{candidates.length} waiting</span>
             </div>
-            {isGenerationWorking(generationStatus) ? (
-              <div className="generation-loader"><GenerationLoader status={generationStatus} /></div>
-            ) : candidates.length === 0 ? (
-              <div className="empty-state">Generate from one to three selected pages, then review each source-linked suggestion here.</div>
-            ) : (
-              <div className="candidate-stack">
-                {candidates.map((card) => (
-                  <ReviewCard
-                    card={card}
-                    key={card.id}
-                    onDiscard={() => setCandidates((current) => current.filter((candidate) => candidate.id !== card.id))}
-                    onKeep={(updated) => void keepCard(updated)}
-                    sourcePages={pantry.sourcePages}
-                  />
-                ))}
+            {generationStatus.stage === 'error' ? (
+              <p className="form-error" role="alert">{generationStatus.detail}</p>
+            ) : null}
+            {candidates.length === 0 ? (
+              <div className="empty-state">
+                Rokki couldn’t verify any questions against your pages this time.
+                <div className="generation-actions">
+                  <button className="primary-button" onClick={returnToSelection} type="button">Choose pages again</button>
+                </div>
               </div>
+            ) : (
+              <>
+                {candidates.length < MAX_CARDS_PER_RUN ? (
+                  <p className="panel-copy">Rokki verified {candidates.length} of up to {MAX_CARDS_PER_RUN} cards against your pages. Keep the ones you want.</p>
+                ) : null}
+                <div className="candidate-stack">
+                  {candidates.map((card) => (
+                    <ReviewCard
+                      card={card}
+                      key={card.id}
+                      onDiscard={() => setCandidates((current) => current.filter((candidate) => candidate.id !== card.id))}
+                      onKeep={(updated) => void keepCard(updated)}
+                      sourcePages={pantry.sourcePages}
+                    />
+                  ))}
+                </div>
+                <div className="generation-actions">
+                  <button className="secondary-button" onClick={returnToSelection} type="button">Back to page selection</button>
+                </div>
+              </>
             )}
           </section>
+          ) : null}
           </>
           ) : null}
 

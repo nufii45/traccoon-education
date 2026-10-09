@@ -1,0 +1,117 @@
+/* Five-segment generation progress. Palette and spacing come from themes.ts
+   tokens. The segments reflect real pipeline state, never a timer. */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 420px;
+}
+
+.counterRow {
+  display: flex;
+  justify-content: center;
+}
+
+.counter {
+  color: var(--color-muted);
+  font: var(--font-weight-bold) var(--text-label) / 1.4 var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.segment {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  transition: background-color var(--motion-standard) ease, opacity var(--motion-standard) ease;
+}
+
+.segment[data-state='pending'] {
+  background: var(--color-surface-muted);
+  opacity: 0.7;
+}
+
+.segment[data-state='completed'] {
+  background: var(--color-primary);
+  opacity: 1;
+}
+
+.segment[data-state='active'] {
+  background: var(--color-primary);
+  opacity: 1;
+  animation: stage-pulse 1.6s ease-in-out infinite;
+}
+
+.segment[data-state='failed'] {
+  background: var(--color-danger);
+  opacity: 1;
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  opacity: 0.55;
+  transition: opacity var(--motion-standard) ease, color var(--motion-standard) ease;
+}
+
+.legendItem[data-state='active'] {
+  color: var(--color-primary-hover);
+  font-weight: var(--font-weight-bold);
+  opacity: 1;
+}
+
+.legendItem[data-state='completed'] {
+  color: var(--color-primary);
+  opacity: 0.85;
+}
+
+.legendItem[data-state='failed'] {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-bold);
+  opacity: 1;
+}
+
+/* Hide the per-stage labels on the narrowest screens; the counter and the
+   announced status message still convey the stage. */
+@media (max-width: 479px) {
+  .legend {
+    display: none;
+  }
+}
+
+@keyframes stage-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment,
+  .legendItem {
+    transition: none;
+  }
+
+  .segment[data-state='active'] {
+    animation: none;
+  }
+}

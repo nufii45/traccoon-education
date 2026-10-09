@@ -61,7 +61,7 @@ describe('PDF import selection', () => {
     expect(screen.getByText('Selected pages: 2')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Create local pantry' }))
     await waitFor(() => expect(createPantry).toHaveBeenCalledWith({ title: 'lecture', sourceName: 'lecture.pdf', sourcePages: [source.pages[1]] }))
-    await screen.findByRole('button', { name: 'Generate local cards' })
+    await screen.findByRole('button', { name: 'Generate my study cards' })
     expect(source.destroy).toHaveBeenCalledOnce()
     createPantry.mockRestore()
   })

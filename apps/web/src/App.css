@@ -765,6 +765,30 @@ select:focus-visible {
   gap: var(--space-3);
 }
 
+.generation-actions-centered {
+  justify-content: center;
+  margin-top: var(--space-5);
+}
+
+/* Recoverable failure inside the generating container: a clear message and
+   retry, so the learner is never stuck on the loading screen. */
+.generation-failure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 460px;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-neutral);
+  font-size: var(--text-body);
+  line-height: 1.55;
+}
+
+.generation-failure .generation-actions {
+  justify-content: center;
+}
+
 /* ---------- Cards ---------- */
 
 .card-section {
