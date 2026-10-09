@@ -1107,6 +1107,8 @@ fieldset.manual-options legend {
 @media (max-width: 760px) {
   .app-shell {
     grid-template-columns: 1fr;
+    /* The brand row keeps its own height; short pages must not stretch it. */
+    grid-template-rows: auto 1fr;
   }
 
   .sidebar {
