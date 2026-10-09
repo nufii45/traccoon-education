@@ -33,6 +33,28 @@ describe('HomeDashboard', () => {
     expect(screen.getAllByRole('button', { name: /Create manually/i }).length).toBeGreaterThan(0)
   })
 
+  it('uses contextual Rokki artwork in the hero and empty-pantry state', () => {
+    render(
+      <HomeDashboard
+        mode="local-private"
+        onCreateFromPdf={noop}
+        onCreateManually={noop}
+        onOpenPantry={noop}
+        onReplayIntro={noop}
+        pantries={[]}
+      />,
+    )
+
+    expect(screen.getByRole('img', { name: 'Rokki welcomes you back' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('rokki-welcome.webp'),
+    )
+    expect(screen.getByRole('img', { name: 'Rokki is ready to help choose a study path' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('rokki-choice.webp'),
+    )
+  })
+
   it('routes the PDF and manual actions to existing workflows', () => {
     const onCreateFromPdf = vi.fn()
     const onCreateManually = vi.fn()

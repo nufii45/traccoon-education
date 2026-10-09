@@ -5,7 +5,8 @@ import {
   SquareLock02Icon,
 } from '@hugeicons/core-free-icons'
 import { Icon } from '../../components/Icon/Icon'
-import rokkiMark from '../../assets/rokki-educ.webp'
+import rokkiChoice from '../../assets/rokki/rokki-choice.webp'
+import rokkiWelcome from '../../assets/rokki/rokki-welcome.webp'
 import type { PantrySummary } from '../pantries/repository'
 import type { OnboardingMode } from './onboardingState'
 import styles from './HomeDashboard.module.css'
@@ -61,7 +62,7 @@ export function HomeDashboard({
           </p>
         </div>
         <figure className={styles.rokki}>
-          <img alt="Rokki, the Traccoon Education mascot" src={rokkiMark} />
+          <img alt="Rokki welcomes you back" src={rokkiWelcome} />
         </figure>
       </header>
 
@@ -109,7 +110,11 @@ export function HomeDashboard({
 
         {isEmpty ? (
           <div className={styles.emptyState}>
-            <img alt="" className={styles.emptyMark} src={rokkiMark} />
+            <img
+              alt="Rokki is ready to help choose a study path"
+              className={styles.emptyMark}
+              src={rokkiChoice}
+            />
             <div>
               <h3>Your pantry is empty — for now.</h3>
               <p>
