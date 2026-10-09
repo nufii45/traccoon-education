@@ -1,6 +1,8 @@
 import { CookieIcon, FolderLibraryIcon, Mortarboard02Icon, SmileIcon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 
+export const TREATS_PATH = '/treats'
+
 export interface NavItem {
   id: 'learn' | 'pantries' | 'treats' | 'rokki'
   label: string
@@ -11,13 +13,13 @@ export interface NavItem {
 }
 
 /**
- * The four primary destinations. Treat Shelf and Rokki are Member 1's pages:
- * flip `isAvailable` and add their routes in App.tsx when they land.
+ * The four primary destinations. Rokki is Member 1's page: flip `isAvailable`
+ * and add its route in App.tsx when it lands.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: 'learn', label: 'Learning Hub', to: '/learn', icon: Mortarboard02Icon, isAvailable: true },
   { id: 'pantries', label: 'My Pantries', to: '/pantries', icon: FolderLibraryIcon, isAvailable: true },
-  { id: 'treats', label: 'Treat Shelf', to: '/treats', icon: CookieIcon, isAvailable: false },
+  { id: 'treats', label: 'Treat Shelf', to: TREATS_PATH, icon: CookieIcon, isAvailable: true },
   { id: 'rokki', label: 'Rokki', to: '/rokki', icon: SmileIcon, isAvailable: false },
 ]
 
@@ -28,6 +30,8 @@ export const isPantriesPath = (pathname: string) => pathname === '/' || pathname
 export const pantryPath = (pantryId: string) => `/pantries/${pantryId}`
 export const PRACTICE_PICKER_PATH = '/learn/practice'
 export const practicePath = (pantryId: string) => `/learn/practice/${pantryId}`
+export const QUIZ_PICKER_PATH = '/learn/quiz'
+export const quizPath = (pantryId: string) => `/learn/quiz/${pantryId}`
 
 /** Where a Practice round was started from, so its exit button returns there. */
 export interface PracticeRouteState {

@@ -10,6 +10,8 @@ import {
   type StudyAttempt,
 } from './pantryRepository'
 import type { GeneratedCard, SourcePage } from '../features/local-ai/types'
+import { INGREDIENTS, TREAT_RECIPES } from '../features/treats/catalog'
+import { totalIngredients } from '../features/treats/engine'
 
 const databaseNames = new Set<string>()
 const repositories: LocalPantryRepository[] = []
@@ -350,7 +352,7 @@ describe('LocalPantryRepository', () => {
       cards: [legacyCard],
       attempts: [expect.objectContaining({ id: 'legacy-attempt', cardId: sharedCardId })],
     })
-    await expect(readStoreNames(name)).resolves.toEqual(['attempts', 'pantries', 'pantryCards'])
+    await expect(readStoreNames(name)).resolves.toEqual(['attempts', 'pantries', 'pantryCards', 'treatEconomy'])
 
     await repository.save({ ...pantryInput('New'), cards: [cardWith({ id: sharedCardId })] })
     await expect(readStore<StoredCard>(name, 'pantryCards')).resolves.toHaveLength(2)
@@ -414,5 +416,79 @@ describe('LocalPantryRepository', () => {
     const storedPlain = storedCards.find((stored) => stored.id === 'plain-card')
     expect(storedEdited?.isEdited).toBe(true)
     expect(storedPlain && 'isEdited' in storedPlain).toBe(false)
+  })
+})
+
+describe('LocalPantryRepository treat economy', () => {
+  /** A `random` that makes the ingredient draw land on this catalog index. */
+  const drawIndex = (index: number) => () => (index + 0.5) / INGREDIENTS.length
+
+  it('records a correct Quiz attempt and its single ingredient together', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+
+    const result = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 }, drawIndex(2))
+
+    expect(result.attempt).toMatchObject({ isCorrect: true, mode: 'quiz', cardId: card.id })
+    expect(result.reward).toEqual({ type: 'quiz_correct', ingredientId: INGREDIENTS[2].id })
+    const economy = await repository.loadTreatEconomy()
+    expect(economy.ingredients).toEqual({ [INGREDIENTS[2].id]: 1 })
+    expect(economy.events[`quiz:${result.attempt.id}`]).toEqual(result.reward)
+    await expect(repository.listAttempts(pantry.id)).resolves.toEqual([result.attempt])
+  })
+
+  it('takes correctness from the stored card and grants nothing for a wrong answer', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+
+    const result = await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 3 })
+
+    expect(result.attempt.isCorrect).toBe(false)
+    expect(result.reward).toEqual({ type: 'quiz_incorrect' })
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
+  })
+
+  it('writes neither the attempt nor an ingredient when the card is missing', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+
+    await expect(repository.appendQuizAttempt({ pantryId: pantry.id, cardId: 'missing', selectedIndex: 0 })).rejects.toBeInstanceOf(CardNotFoundError)
+    await expect(repository.listAttempts(pantry.id)).resolves.toEqual([])
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
+  })
+
+  it('keeps Practice attempts free of ingredients', async () => {
+    const repository = openRepository()
+    const pantry = await repository.save({ ...pantryInput('Practice'), cards: [card] })
+
+    await repository.appendAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0, isCorrect: true })
+
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
+  })
+
+  it('crafts and feeds once per action id, and keeps the shelf after reopening', async () => {
+    const name = newDatabaseName()
+    const repository = openRepository(name)
+    const recipe = TREAT_RECIPES[0]
+    const pantry = await repository.save({ ...pantryInput('Quiz'), cards: [card] })
+    for (const ingredient of recipe.ingredients) {
+      const index = INGREDIENTS.findIndex((item) => item.id === ingredient.id)
+      await repository.appendQuizAttempt({ pantryId: pantry.id, cardId: card.id, selectedIndex: 0 }, drawIndex(index))
+    }
+
+    const crafted = await repository.craftTreat('craft-1', recipe.id)
+    expect(crafted.state.treats[recipe.id]).toBe(1)
+    await expect(repository.craftTreat('craft-1', recipe.id)).resolves.toMatchObject({ duplicate: true })
+    await expect(repository.craftTreat('craft-2', recipe.id)).rejects.toThrow(/Missing ingredients/)
+    expect(totalIngredients(await repository.loadTreatEconomy())).toBe(0)
+
+    repository.close()
+    const reopened = openRepository(name)
+    expect((await reopened.loadTreatEconomy()).treats[recipe.id]).toBe(1)
+
+    await reopened.feedTreat('feed-1', recipe.id, '2026-10-10')
+    await expect(reopened.feedTreat('feed-1', recipe.id, '2026-10-10')).resolves.toMatchObject({ duplicate: true })
+    await expect(reopened.feedTreat('feed-2', recipe.id, '2026-10-10')).rejects.toThrow(/No treat/)
+    expect((await reopened.loadTreatEconomy()).treats[recipe.id]).toBe(0)
   })
 })

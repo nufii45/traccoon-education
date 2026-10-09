@@ -1,0 +1,299 @@
+/* Treat Shelf. Tokens from themes.ts; 14px text and 44px targets minimum. */
+
+.kitchen {
+  display: grid;
+  gap: var(--space-6);
+  max-width: 1200px;
+  padding-top: clamp(16px, 5vh, 48px);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-primary);
+  font: var(--font-weight-bold) var(--text-label) var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+}
+
+.lead,
+.note {
+  max-width: 640px;
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-body);
+  line-height: 1.6;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.stats dt {
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.stats dd {
+  margin: 0;
+  color: var(--color-neutral);
+  font: var(--font-weight-extrabold) var(--text-heading) / 1.1 var(--font-sans);
+}
+
+.pantry {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.pantry h2 {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+
+.ingredientList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ingredientList li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.ingredientList strong {
+  color: var(--color-primary-hover);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.filter {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-copy);
+  font: var(--font-weight-bold) var(--text-label) var(--font-sans);
+  cursor: pointer;
+}
+
+.filter:hover {
+  border-color: var(--color-neutral);
+}
+
+.filterOn {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+.filterOn:hover {
+  border-color: var(--color-primary-hover);
+}
+
+.message {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-success-surface);
+  color: var(--color-neutral);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-4);
+}
+
+.recipe {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.recipeArt {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 176px;
+  background: radial-gradient(circle at 50% 65%, var(--color-surface) 0, var(--color-secondary) 65%, var(--color-surface-muted) 100%);
+}
+
+.owned {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-primary-hover);
+  font: var(--font-weight-extrabold) var(--text-label) var(--font-sans);
+}
+
+.recipeBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.recipeName {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+}
+
+.progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+}
+
+.progress > div {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--color-tertiary);
+  transition: width var(--motion-standard);
+}
+
+.parts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+}
+
+.part img {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+}
+
+.collected img {
+  opacity: 1;
+  filter: none;
+}
+
+.needed {
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.actions button {
+  flex: 1;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-6);
+  border: 2px dashed var(--color-muted);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  text-align: center;
+}
+
+.footnote {
+  margin: 0;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  text-align: center;
+}
+
+@media (max-width: 599px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  .stats > div {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress > div {
+    transition: none;
+  }
+}

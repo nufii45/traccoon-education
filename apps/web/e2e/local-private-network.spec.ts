@@ -89,6 +89,37 @@ test('manual authoring, study, reload, and deletion send no study content', asyn
   guard.assertClean('manual authoring, study, reload, and deletion')
 })
 
+test('Quiz answers, ingredient rewards, and the Treat Shelf send no study content', async ({ context, page }) => {
+  const canaries = createStudyCanaries()
+  const guard = await installNetworkGuard(context, { canaries })
+  await disableWebGpu(page)
+
+  await page.goto('/')
+  await importPdfAndCreatePantry(page, canaries)
+
+  await page.getByRole('button', { name: 'Add manual card' }).click()
+  await page.getByLabel('Question').fill(canaries.cardQuestion)
+  for (const [index, option] of canaries.cardOptions.entries()) {
+    await page.getByLabel(`Manual option ${index + 1}`).fill(option)
+  }
+  await page.getByLabel('Mark option A correct').check()
+  await page.getByRole('button', { name: 'Save card' }).click()
+  await expect(page.getByRole('button', { name: 'Study 1 card' })).toBeEnabled()
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Learning Hub' }).click()
+  await page.getByRole('link', { name: /Quiz/ }).click()
+  await page.getByRole('link', { name: `Quiz ${PANTRY_TITLE}` }).click()
+  await page.getByRole('button', { name: canaries.cardOptions[0] }).click()
+  await page.getByRole('button', { name: 'Check answer' }).click()
+  await expect(page.getByText('Ingredient found')).toBeVisible()
+  await page.getByRole('button', { name: /See results/ }).click()
+  await page.getByRole('link', { name: 'Open the Treat Shelf' }).click()
+  await expect(page.getByRole('heading', { name: 'Make something sweet for Rokki.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your ingredients' })).toBeVisible()
+
+  guard.assertClean('quiz and treat shelf')
+})
+
 test('local generation without WebGPU shows unsupported state and manual authoring', async ({ context, page }) => {
   const canaries = createStudyCanaries()
   const guard = await installNetworkGuard(context, { canaries })

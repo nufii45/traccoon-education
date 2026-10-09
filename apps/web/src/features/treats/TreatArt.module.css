@@ -1,0 +1,58 @@
+/* Treat and ingredient art. Tokens from themes.ts. */
+
+.image {
+  display: block;
+  flex-shrink: 0;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.treat {
+  filter: drop-shadow(0 10px 8px rgb(130 88 42 / 12%));
+}
+
+.missing {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  max-width: 100%;
+  padding: var(--space-1);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-muted);
+  color: var(--color-copy);
+  font: var(--font-weight-bold) var(--text-label) / 1.2 var(--font-sans);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.reward {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-warning-surface);
+  color: var(--color-neutral);
+  font-size: var(--text-label);
+}
+
+.reward strong,
+.reward small {
+  display: block;
+}
+
+.reward strong {
+  font-size: var(--text-body);
+}
+
+.reward small {
+  margin-top: var(--space-1);
+  color: var(--color-copy);
+  font-size: var(--text-label);
+}

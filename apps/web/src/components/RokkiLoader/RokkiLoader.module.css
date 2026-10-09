@@ -1,0 +1,177 @@
+/* Animated Rokki loader. Palette and type come from themes.ts tokens. */
+
+.loader {
+  --rk-diameter: 172px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-6);
+  color: var(--color-neutral);
+  font-family: var(--font-sans);
+  text-align: center;
+}
+
+.scene {
+  position: relative;
+  flex: none;
+  width: var(--rk-diameter);
+  height: var(--rk-diameter);
+  isolation: isolate;
+}
+
+.scene::before {
+  position: absolute;
+  inset: 19%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(141 103 72 / 15%) 0%, rgb(141 103 72 / 0%) 70%);
+  content: '';
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.track {
+  stroke: var(--color-border);
+  stroke-width: 1.6;
+}
+
+.sweep,
+.progress {
+  stroke: var(--color-tertiary);
+  stroke-linecap: round;
+  stroke-width: 4;
+  transform-origin: 110px 110px;
+}
+
+.sweep {
+  stroke-dasharray: 79 590.619;
+  animation: rk-spin 1.75s linear infinite;
+}
+
+.progress {
+  transform: rotate(-90deg);
+  transition: stroke-dashoffset 260ms ease;
+}
+
+.mascot {
+  position: absolute;
+  top: 11.5%;
+  left: 11.5%;
+  display: block;
+  width: 77%;
+  height: 77%;
+  object-fit: contain;
+  transform-origin: 50% 68%;
+  user-select: none;
+  animation: rk-gentle-bob 2.65s ease-in-out infinite;
+}
+
+.spark {
+  position: absolute;
+  width: max(4px, calc(var(--rk-diameter) * 0.026));
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-tertiary);
+  box-shadow: 0 0 13px rgb(229 169 60 / 42%);
+  animation: rk-pulse 1.7s ease-in-out infinite alternate;
+}
+
+.sparkA {
+  top: 22%;
+  left: 13%;
+}
+
+.sparkB {
+  right: 7%;
+  bottom: 27%;
+  width: max(3px, calc(var(--rk-diameter) * 0.015));
+  opacity: 0.65;
+  animation-delay: -0.75s;
+}
+
+.copy {
+  max-width: min(92vw, 490px);
+}
+
+.eyebrow {
+  color: var(--color-primary);
+  font: var(--font-weight-bold) var(--text-label) / 1.4 var(--font-sans);
+  letter-spacing: var(--letter-spacing-label);
+}
+
+.title {
+  margin-top: var(--space-3);
+  font-size: clamp(18px, 2.1vw, 24px);
+  font-weight: var(--font-weight-extrabold);
+  line-height: 1.28;
+  letter-spacing: var(--letter-spacing-compact);
+}
+
+.description {
+  margin: var(--space-2) 0 0;
+  color: var(--color-copy);
+  font-size: var(--text-label);
+  line-height: 1.55;
+}
+
+.percentage {
+  margin-top: var(--space-3);
+  color: var(--color-primary-hover);
+  font: var(--font-weight-bold) var(--text-label) var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.screen {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: min(100svh, 640px);
+  padding: var(--space-12) var(--space-6);
+}
+
+@keyframes rk-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rk-gentle-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-3.5%) rotate(2deg); }
+}
+
+@keyframes rk-pulse {
+  from { opacity: 0.28; transform: scale(0.65); }
+  to { opacity: 0.98; transform: scale(1.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep,
+  .mascot,
+  .spark {
+    animation: none !important;
+  }
+
+  .sweep {
+    transform: rotate(-90deg);
+  }
+
+  .progress {
+    transition: none;
+  }
+}

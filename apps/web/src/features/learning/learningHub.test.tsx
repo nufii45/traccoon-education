@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../../App'
 import { writeOnboardingState } from '../onboarding/onboardingState'
 import { pantryRepository } from '../pantries/repository'
+import { totalIngredients } from '../treats/engine'
 
 const manualCard = (id: string) => ({
   id,
@@ -30,15 +31,13 @@ describe('Learning Hub practice', () => {
     window.history.replaceState(null, '', '/')
   })
 
-  it('offers Practice and marks Quiz as not available yet', async () => {
+  it('offers Practice and Quiz', async () => {
     window.history.replaceState(null, '', '/learn')
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Pick how you want to study.' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Practice/ })).toHaveAttribute('href', '/learn/practice')
-    const quiz = screen.getByText('Quiz').closest('[aria-disabled]')
-    expect(quiz).toHaveAttribute('aria-disabled', 'true')
-    expect(quiz).toHaveTextContent('Soon')
+    expect(screen.getByRole('link', { name: /Quiz/ })).toHaveAttribute('href', '/learn/quiz')
   })
 
   it('runs a five-card round from a larger pantry and returns to the Learning Hub', async () => {
@@ -77,5 +76,60 @@ describe('Learning Hub practice', () => {
 
     expect(await screen.findByRole('button', { name: 'Back to pantry' })).toBeInTheDocument()
     expect(window.location.pathname).toBe(`/learn/practice/${pantry.id}`)
+  })
+})
+
+describe('Learning Hub quiz', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    writeOnboardingState({ completed: true, mode: 'local-private' })
+    window.history.replaceState(null, '', '/')
+  })
+
+  const answer = async (option: string) => {
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(option) }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check answer' }))
+  }
+
+  it('starts a Quiz round from the picker', async () => {
+    const pantry = await createPantry('Quiz set', 3)
+    window.history.replaceState(null, '', '/learn/quiz')
+    render(<App />)
+
+    const row = (await screen.findByText('Quiz set')).closest('li') as HTMLElement
+    fireEvent.click(within(row).getByRole('link', { name: 'Quiz Quiz set' }))
+
+    expect(await screen.findByText(/QUIZ · 3 CARDS/)).toBeInTheDocument()
+    expect(window.location.pathname).toBe(`/learn/quiz/${pantry.id}`)
+  })
+
+  it('shows the stored ingredient after a correct answer and saves it with the attempt', async () => {
+    const pantry = await createPantry('Correct set', 1)
+    const before = totalIngredients(await pantryRepository.loadTreatEconomy())
+    window.history.replaceState(null, '', `/learn/quiz/${pantry.id}`)
+    render(<App />)
+
+    await answer('Right answer')
+
+    expect(await screen.findByText('Ingredient found')).toBeInTheDocument()
+    expect(totalIngredients(await pantryRepository.loadTreatEconomy())).toBe(before + 1)
+    const [attempt] = await pantryRepository.listAttempts(pantry.id)
+    expect(attempt).toMatchObject({ isCorrect: true, mode: 'quiz' })
+
+    fireEvent.click(screen.getByRole('button', { name: /See results/ }))
+    expect(await screen.findByRole('heading', { name: '1 ingredient found' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open the Treat Shelf' })).toHaveAttribute('href', '/treats')
+  })
+
+  it('finds no ingredient for a wrong answer', async () => {
+    const pantry = await createPantry('Wrong set', 1)
+    const before = totalIngredients(await pantryRepository.loadTreatEconomy())
+    window.history.replaceState(null, '', `/learn/quiz/${pantry.id}`)
+    render(<App />)
+
+    await answer('Wrong one')
+
+    expect(await screen.findByText(/No ingredient this time/)).toBeInTheDocument()
+    expect(totalIngredients(await pantryRepository.loadTreatEconomy())).toBe(before)
   })
 })

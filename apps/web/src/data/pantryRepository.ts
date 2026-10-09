@@ -1,5 +1,16 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
 import type { GeneratedCard, SourcePage } from '../features/local-ai/types'
+import type { TreatId } from '../features/treats/catalog'
+import {
+  awardQuizIngredient,
+  craftTreat,
+  feedTreat,
+  initialTreatEconomy,
+  localDateKey,
+  type EconomyEvent,
+  type TreatEconomy,
+  type Update,
+} from '../features/treats/engine'
 
 interface PantryRecord {
   id: string
@@ -43,6 +54,8 @@ export interface LoadedPantry extends Pantry {
   attempts: StudyAttempt[]
 }
 
+export type StudyMode = 'practice' | 'quiz'
+
 export interface StudyAttempt {
   id: string
   pantryId: string
@@ -50,9 +63,24 @@ export interface StudyAttempt {
   selectedIndex: number
   isCorrect: boolean
   createdAt: string
+  /** Set for attempts recorded since Quiz shipped; older attempts were Practice. */
+  mode?: StudyMode
 }
 
 export type CreateStudyAttemptInput = Omit<StudyAttempt, 'id' | 'createdAt'>
+
+export type QuizAttemptInput = Pick<CreateStudyAttemptInput, 'pantryId' | 'cardId' | 'selectedIndex'>
+
+/** A Quiz attempt and the ingredient reward event committed with it. */
+export interface QuizAttemptResult {
+  attempt: StudyAttempt
+  reward: EconomyEvent
+}
+
+interface TreatEconomyRecord {
+  key: 'current'
+  value: TreatEconomy
+}
 
 export interface CreatePantryInput {
   title: string
@@ -88,6 +116,7 @@ type TraccoonTables = {
   pantries: EntityTable<PantryRecord, 'id'>
   pantryCards: Table<StoredCard, [string, string]>
   attempts: EntityTable<StudyAttempt, 'id'>
+  treatEconomy: EntityTable<TreatEconomyRecord, 'key'>
 }
 
 const now = () => new Date().toISOString()
@@ -163,6 +192,13 @@ export class LocalPantryRepository {
         const legacyCards = await tx.table<StoredCard, string>('cards').toArray()
         await tx.table<StoredCard, [string, string]>('pantryCards').bulkPut(legacyCards)
       })
+    // v4: one treat economy snapshot (ingredients, treats, idempotency events).
+    this.db.version(4).stores({
+      pantries: 'id, updatedAt',
+      pantryCards: '[pantryId+id], pantryId, createdAt',
+      attempts: 'id, pantryId, cardId, createdAt',
+      treatEconomy: 'key',
+    })
   }
 
   private async requirePantry(pantryId: string): Promise<PantryRecord> {
@@ -198,22 +234,45 @@ export class LocalPantryRepository {
   }
 
   private insertAttempt(input: CreateStudyAttemptInput, requireCard: boolean): Promise<StudyAttempt> {
-    return this.db.transaction('rw', this.db.pantries, this.db.pantryCards, this.db.attempts, async () => {
-      await this.requirePantry(input.pantryId)
-      if (requireCard) {
-        await this.requireCard(input.pantryId, input.cardId)
-      }
+    return this.db.transaction('rw', this.db.pantries, this.db.pantryCards, this.db.attempts, () =>
+      this.writeAttempt(input, requireCard),
+    )
+  }
 
-      const attempt: StudyAttempt = {
-        id: createId(),
-        pantryId: input.pantryId,
-        cardId: input.cardId,
-        selectedIndex: input.selectedIndex,
-        isCorrect: input.isCorrect,
-        createdAt: now(),
+  /** Call inside a transaction that includes pantries, pantryCards, and attempts. */
+  private async writeAttempt(input: CreateStudyAttemptInput, requireCard: boolean): Promise<StudyAttempt> {
+    await this.requirePantry(input.pantryId)
+    if (requireCard) {
+      await this.requireCard(input.pantryId, input.cardId)
+    }
+
+    const attempt: StudyAttempt = {
+      id: createId(),
+      pantryId: input.pantryId,
+      cardId: input.cardId,
+      selectedIndex: input.selectedIndex,
+      isCorrect: input.isCorrect,
+      createdAt: now(),
+    }
+    if (input.mode !== undefined) {
+      attempt.mode = input.mode
+    }
+    await this.db.attempts.add(attempt)
+    return attempt
+  }
+
+  private async readEconomy(): Promise<TreatEconomy> {
+    return (await this.db.treatEconomy.get('current'))?.value ?? initialTreatEconomy()
+  }
+
+  /** Apply one engine command to the stored economy in its own transaction. */
+  private updateEconomy(command: (state: TreatEconomy) => Update): Promise<Update> {
+    return this.db.transaction('rw', this.db.treatEconomy, async () => {
+      const result = command(await this.readEconomy())
+      if (!result.duplicate) {
+        await this.db.treatEconomy.put({ key: 'current', value: result.state })
       }
-      await this.db.attempts.add(attempt)
-      return attempt
+      return result
     })
   }
 
@@ -296,6 +355,41 @@ export class LocalPantryRepository {
    */
   appendAttempt(input: CreateStudyAttemptInput): Promise<StudyAttempt> {
     return this.insertAttempt(input, true)
+  }
+
+  /**
+   * Record a Quiz attempt and its ingredient reward in one transaction: a
+   * correct answer adds one random ingredient keyed by the new attempt id, a
+   * wrong one records no ingredient. Correctness comes from the stored card,
+   * not the caller. If either write fails, neither is kept. Throws
+   * {@link PantryNotFoundError} or {@link CardNotFoundError} like
+   * {@link appendAttempt}.
+   */
+  appendQuizAttempt(input: QuizAttemptInput, random: () => number = Math.random): Promise<QuizAttemptResult> {
+    return this.db.transaction('rw', [this.db.pantries, this.db.pantryCards, this.db.attempts, this.db.treatEconomy], async () => {
+      await this.requirePantry(input.pantryId)
+      const card = await this.requireCard(input.pantryId, input.cardId)
+      const isCorrect = input.selectedIndex === card.correctIndex
+      const attempt = await this.writeAttempt({ ...input, isCorrect, mode: 'quiz' }, false)
+      const result = awardQuizIngredient(await this.readEconomy(), attempt.id, attempt.isCorrect, random)
+      await this.db.treatEconomy.put({ key: 'current', value: result.state })
+      return { attempt, reward: result.event }
+    })
+  }
+
+  /** The learner's ingredients and crafted treats on this device. */
+  loadTreatEconomy(): Promise<TreatEconomy> {
+    return this.db.transaction('r', this.db.treatEconomy, () => this.readEconomy())
+  }
+
+  /** Spend one recipe's ingredients for one treat. Replaying `craftId` changes nothing. */
+  craftTreat(craftId: string, treatId: TreatId): Promise<Update> {
+    return this.updateEconomy((state) => craftTreat(state, craftId, treatId))
+  }
+
+  /** Feed Rokki one crafted treat. Replaying `feedId` changes nothing. */
+  feedTreat(feedId: string, treatId: TreatId, date: string = localDateKey()): Promise<Update> {
+    return this.updateEconomy((state) => feedTreat(state, feedId, treatId, date))
   }
 
   /**
