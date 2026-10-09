@@ -1,0 +1,63 @@
+/* Traccoon design tokens.
+   Palette ("highlighter"): paper, ink, one fluorescent highlighter for cited
+   quotes, ballpoint blue for Local Private / focus, green and red pen for
+   answers. Every text and UI pair meets WCAG AA; --color-highlighter is
+   decorative only and always carries ink text.
+   Fonts are bundled with @fontsource-variable — never a font CDN, per the
+   Local Private rule. */
+
+:root {
+  --color-paper: #ffffff;
+  --color-desk: #f4f4f2;
+  --color-ink: #141414;
+  --color-graphite: #5e5e5b;
+  --color-rule: #e4e4e0;
+  --color-rule-strong: #8c8c88;
+  --color-highlighter: #ffef5a;
+  --color-ballpoint: #2346c8;
+  --color-ballpoint-tint: #ecf0fd;
+  --color-correct: #13703a;
+  --color-correct-tint: #e6f4eb;
+  --color-redpen: #be2a1e;
+  --color-redpen-tint: #fdedeb;
+  --color-caution: #8a4b00;
+  --color-caution-tint: #fff4dc;
+
+  /* Fredoka: headlines, feedback, scores. Atkinson Mono: content and UI.
+     Atkinson Next: long source-page passages. */
+  --font-display: 'Fredoka Variable', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  --font-mono: 'Atkinson Hyperlegible Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-reading: 'Atkinson Hyperlegible Next Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --text-label: 14px;
+  --text-body: 16px;
+  --text-lead: 18px;
+  --text-heading: 24px;
+  --text-title: 32px;
+  --text-display: clamp(40px, 6vw, 64px);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  --tap-target: 44px;
+  --lip: 0 4px 0;
+  --focus-ring: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-ballpoint);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+  }
+}

@@ -103,7 +103,13 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar" aria-label="Pantries">
         <button className="brand" onClick={resetToWelcome} type="button">
-          <span className="brand-mark" aria-hidden="true">T</span>
+          <span className="brand-mark" aria-hidden="true">
+            <svg fill="none" height="22" viewBox="0 0 34 20" width="36">
+              <path d="M2 6C2 3.8 3.8 2 6 2H28C30.2 2 32 3.8 32 6V10C32 15.5 27.5 18 23 18C20 18 18.5 16 17 14C15.5 16 14 18 11 18C6.5 18 2 15.5 2 10V6Z" fill="#141414" />
+              <circle cx="10.5" cy="9" fill="#ffef5a" r="3" />
+              <circle cx="23.5" cy="9" fill="#ffef5a" r="3" />
+            </svg>
+          </span>
           <span>traccoon <b>education</b></span>
         </button>
 
@@ -124,7 +130,7 @@ function App() {
                 type="button"
               >
                 <span>{pantry.title}</span>
-                <small>{pantry.cardCount} cards</small>
+                <small>{pantry.cardCount} {pantry.cardCount === 1 ? 'card' : 'cards'}</small>
               </button>
             ))
           )}
@@ -424,7 +430,7 @@ function PantryWorkspace({
           {attemptLoadError ? <p className="form-error" role="alert">Answer history could not be loaded from this device.</p> : null}
         </div>
         <div className="header-actions">
-          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} cards</button>
+          <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} {pantry.cards.length === 1 ? 'card' : 'cards'}</button>
           <button className="danger-button" onClick={() => setConfirmingDeletion(true)} type="button">Delete pantry</button>
         </div>
       </header>
