@@ -24,6 +24,8 @@ import {
   type MixPhase,
 } from './mixingState'
 import { IngredientIcon, TreatIcon } from './TreatArt'
+import { InteractiveRokki } from '../../components/InteractiveRokki'
+import rokkiCards from '../../assets/rokki/rokki-cards.webp'
 import styles from './MixingBowl.module.css'
 
 const CONFETTI_COLORS = ['#E5A93C', '#8D6748', '#E9B58F', '#13703A', '#2346C8', '#BE2A1E', '#FFEF5A', '#F5EFEB']
@@ -246,6 +248,18 @@ export function MixingBowl({ treatId, economy, onCommitCraft, onViewShelf, onClo
               <span aria-hidden="true" className={styles.burst} />
               <span className={styles.revealIcon}><TreatIcon id={treatId} size={180} /></span>
             </div>
+            {state.phase === 'completed' ? (
+              // Rokki celebrates alongside the existing reveal, only once the
+              // craft has genuinely committed. Decorative: the copy announces
+              // the result, so the mascot is silent and non-interactive.
+              <InteractiveRokki
+                imageAlt=""
+                interactive={false}
+                src={rokkiCards}
+                state="celebrating"
+                width={96}
+              />
+            ) : null}
             <p className={styles.revealCopy}>Yay! You made a {treat.name}!</p>
             <button
               autoFocus

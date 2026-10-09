@@ -9,6 +9,8 @@ import type { IngredientId } from '../treats/catalog'
 import type { EconomyEvent } from '../treats/engine'
 import { IngredientCelebration } from '../treats/IngredientCelebration'
 import { IngredientIcon, IngredientReward } from '../treats/TreatArt'
+import { InteractiveRokki } from '../../components/InteractiveRokki'
+import rokkiCards from '../../assets/rokki/rokki-cards.webp'
 import { selectPracticeCards } from './practiceRound'
 import styles from './QuizSession.module.css'
 
@@ -57,6 +59,13 @@ export function QuizSession() {
 
   const summary = (
     <div className={styles.found}>
+      <InteractiveRokki
+        imageAlt=""
+        interactive={false}
+        src={rokkiCards}
+        state={found.length > 0 ? 'celebrating' : 'idle'}
+        width={88}
+      />
       <h3 className={styles.foundHeading}>
         {found.length === 0 ? 'No ingredients found this time.' : `${found.length} ${found.length === 1 ? 'ingredient' : 'ingredients'} found`}
       </h3>

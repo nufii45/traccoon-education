@@ -1,0 +1,214 @@
+/* Interactive Rokki mascot. Whole-character transforms only (single image).
+   Transform + opacity animations; reduced-motion aware; idle pauses when the
+   element is scrolled out of view. Palette and motion from themes.ts tokens. */
+
+.root {
+  --rk-width: 200px;
+  --rk-tilt: 0deg;
+  position: relative;
+  display: inline-grid;
+  justify-items: center;
+  width: var(--rk-width);
+  max-width: 100%;
+}
+
+/* Reserve vertical space for the speech bubble so it never shifts layout. */
+.bubbleSlot {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  margin-bottom: var(--space-2);
+  pointer-events: none;
+}
+
+.bubble {
+  position: relative;
+  max-width: min(220px, 80vw);
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-neutral);
+  font: 700 var(--text-label) var(--font-sans);
+  text-align: center;
+  animation: rk-bubble-in var(--motion-standard) ease both;
+}
+
+.bubble::after {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--color-surface);
+  border-right: 2px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border);
+  transform: translateX(-50%) rotate(45deg);
+  content: '';
+}
+
+/* Interactive wrapper is a real button for native keyboard activation. */
+.trigger {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--radius-card);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 6px;
+}
+
+.figure {
+  display: block;
+  width: 100%;
+  transform-origin: 50% 85%;
+  will-change: transform;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ---------- Entrance (Phase D) ---------- */
+/* Start slightly lower and faded; settle when the section has entered. */
+.root[data-entered='false'] .figure {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.root[data-entered='true'] .figure {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity var(--motion-standard) ease,
+    transform var(--motion-standard) ease;
+}
+
+/* ---------- Idle float (Phase B) ---------- */
+/* Runs only while visible and when motion is allowed. */
+.root[data-animate='true'][data-state='idle'] .figure {
+  animation: rk-idle-float 4.5s ease-in-out infinite;
+}
+
+/* ---------- Hover tilt (Phase C) ---------- */
+/* Idle softens to a steady tilt toward the pointer. */
+.root[data-state='hover'] .figure {
+  animation: none;
+  transform: translateY(-2px) rotate(var(--rk-tilt));
+  transition: transform var(--motion-quick) ease;
+}
+
+/* ---------- Greeting (Phase C/D) ---------- */
+.root[data-animate='true'][data-state='greeting'] .figure {
+  animation: rk-greeting 1.2s ease-in-out;
+}
+
+/* ---------- Thinking (Phase E) ---------- */
+/* Subtle, slower sway while a real async operation runs. */
+.root[data-animate='true'][data-state='thinking'] .figure {
+  animation: rk-thinking 2.6s ease-in-out infinite;
+}
+
+/* ---------- Celebrating (Phase E) ---------- */
+.root[data-animate='true'][data-state='celebrating'] .figure {
+  animation: rk-celebrate 0.9s ease-in-out;
+}
+
+/* Click reaction bounce layers on top of whatever state is active. */
+.trigger:active .figure {
+  transform: translateY(2px) scale(0.98);
+}
+
+@keyframes rk-idle-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(1.5deg);
+  }
+}
+
+@keyframes rk-greeting {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-6px) rotate(-5deg);
+  }
+  55% {
+    transform: translateY(-2px) rotate(5deg);
+  }
+  80% {
+    transform: translateY(-3px) rotate(-2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes rk-thinking {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(2deg);
+  }
+}
+
+@keyframes rk-celebrate {
+  0% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  30% {
+    transform: translateY(-12px) scale(1.04) rotate(-3deg);
+  }
+  55% {
+    transform: translateY(0) scale(1) rotate(3deg);
+  }
+  75% {
+    transform: translateY(-6px) scale(1.02) rotate(-1deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes rk-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+/* The mascot rests in a visible, settled position; the speech bubble still
+   appears (it is information, not motion). The global index.css rule already
+   neutralises durations; this makes the resting state explicit and removes the
+   entrance offset so nothing starts hidden. */
+@media (prefers-reduced-motion: reduce) {
+  .root .figure {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .bubble {
+    animation: none !important;
+  }
+}
