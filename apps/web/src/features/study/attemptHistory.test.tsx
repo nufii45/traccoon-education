@@ -1,9 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import App from '../../App'
 import { pantryRepository } from '../pantries/repository'
+import { writeOnboardingState } from '../onboarding/onboardingState'
 
 describe('recorded study history', () => {
+  beforeEach(() => {
+    writeOnboardingState({ completed: true, mode: 'local-private' })
+  })
+
   it('shows answers recorded on this device when a saved pantry is reopened', async () => {
     const pantry = await pantryRepository.createPantry({
       title: 'Cell respiration',
@@ -14,7 +19,8 @@ describe('recorded study history', () => {
     await pantryRepository.saveAttempt({ pantryId: pantry.id, cardId: 'card-2', selectedIndex: 2, isCorrect: false })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('button', { name: /Cell respiration/ }))
+    const [sidebarLink] = await screen.findAllByRole('button', { name: /Cell respiration/ })
+    fireEvent.click(sidebarLink)
 
     expect(await screen.findByText(/Recorded on this device: 1 of 2 answers correct/)).toBeInTheDocument()
   })
