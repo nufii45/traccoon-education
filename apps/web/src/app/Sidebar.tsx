@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
-import { Add01Icon, ArrowDown01Icon, File01Icon, PencilEdit02Icon, SquareLock02Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, ArrowDown01Icon, File01Icon, PencilEdit02Icon } from '@hugeicons/core-free-icons'
 import rokkiMark from '../assets/rokki-educ.webp'
 import { Icon } from '../components/Icon/Icon'
 import { groupPantriesByRecency, isManualPantry } from '../features/pantries/pantryGroups'
@@ -113,10 +113,6 @@ export function Sidebar({ summaries, activePantryId, onNewSource }: SidebarProps
         </section>
       ) : null}
 
-      <div className="sidebar-footer">
-        <Icon icon={SquareLock02Icon} size={16} />
-        Local Private: no study content sent for generation
-      </div>
     </aside>
   )
 }
