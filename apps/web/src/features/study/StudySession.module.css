@@ -1,0 +1,171 @@
+.progress {
+  height: 4px;
+  margin-top: 18px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: width 200ms ease;
+}
+
+.cardMeta {
+  margin: 0 0 10px;
+  color: var(--copy);
+  font: 700 12px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.answerTag {
+  grid-column: 2;
+  color: var(--copy);
+  font: 600 14px var(--sans);
+  font-style: normal;
+}
+
+.feedbackRegion {
+  margin-top: 16px;
+}
+
+.feedbackCorrect,
+.feedbackWrong {
+  padding: 14px 16px;
+  border-radius: 10px;
+  border-left: 4px solid;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.feedbackCorrect p,
+.feedbackWrong p {
+  margin: 0;
+}
+
+.feedbackCorrect {
+  border-color: #13703a;
+  background: #e6f4eb;
+  color: var(--ink);
+}
+
+.feedbackWrong {
+  border-color: #be2a1e;
+  background: #fdedeb;
+  color: var(--ink);
+}
+
+.feedbackTitle {
+  font-weight: 700;
+}
+
+.missed {
+  margin-top: 28px;
+}
+
+.missedHeading {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font: 500 22px var(--serif);
+}
+
+.missedList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missedItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.missedQuestion {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.missedAnswer {
+  margin: 4px 0 0;
+  color: var(--copy);
+  font-size: 14px;
+}
+
+.allCorrect {
+  margin: 28px 0 0;
+  color: var(--copy);
+  font-size: 16px;
+}
+
+.evidenceNote {
+  display: grid;
+  gap: 2px;
+  padding: 16px 32px;
+  background: #ecf0fd;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.evidenceNote strong {
+  color: #2346c8;
+}
+
+.pageText {
+  display: grid;
+  gap: 16px;
+  padding: 32px;
+  color: var(--copy);
+  font: 18px/1.65 var(--serif);
+}
+
+.pageText p {
+  margin: 0;
+}
+
+/* Underline keeps the cited passage visible without relying on color. */
+.quoteMark {
+  padding: 1px 2px;
+  border-bottom: 2px solid var(--ink);
+  border-radius: 3px;
+  background: #ffef5a;
+  color: var(--ink);
+}
+
+.quoteBlock {
+  color: var(--ink);
+}
+
+.fullPage {
+  color: var(--copy);
+}
+
+@media (max-width: 599px) {
+  .evidenceNote,
+  .pageText {
+    padding-inline: 16px;
+  }
+
+  .missedItem {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Shared App.css buttons are ~33px tall; study controls need 44px targets. */
+.tapTarget {
+  min-height: 44px;
+  font-size: 14px;
+}

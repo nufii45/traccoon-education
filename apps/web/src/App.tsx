@@ -10,6 +10,8 @@ import {
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
 import type { GeneratedCard, SourcePage } from './features/local-ai/types'
 import { extractPdfText } from './features/pantries/pdfText'
+import { StudySession } from './features/study/StudySession'
+import { summarizeAttempts, type AttemptSummary } from './features/study/attemptSummary'
 import {
   pantryRepository,
   type Pantry,
@@ -330,6 +332,22 @@ function PantryWorkspace({
   const [generationStatus, setGenerationStatus] = useState<LocalAiStatus>({ stage: 'idle', detail: 'Ready when you are.' })
   const [showManualAuthor, setShowManualAuthor] = useState(false)
   const [confirmingDeletion, setConfirmingDeletion] = useState(false)
+  const [attemptSummary, setAttemptSummary] = useState<AttemptSummary>()
+  const [attemptLoadError, setAttemptLoadError] = useState(false)
+
+  // Reload recorded answers when the pantry opens and when leaving study.
+  useEffect(() => {
+    if (showStudy) {
+      return
+    }
+    pantryRepository
+      .listAttempts(pantry.id)
+      .then((attempts) => {
+        setAttemptSummary(summarizeAttempts(attempts))
+        setAttemptLoadError(false)
+      })
+      .catch(() => setAttemptLoadError(true))
+  }, [pantry.id, showStudy])
   const [generationController, setGenerationController] = useState<AbortController>()
 
   const generate = async () => {
@@ -397,6 +415,13 @@ function PantryWorkspace({
           <div className="eyebrow"><span /> LOCAL PANTRY</div>
           <h1>{pantry.title}</h1>
           <p>{pantry.sourceName} · {pantry.sourcePages.length} local source {pantry.sourcePages.length === 1 ? 'page' : 'pages'}</p>
+          {attemptSummary ? (
+            <p className="attempt-summary">
+              Recorded on this device: {attemptSummary.correct} of {attemptSummary.answered} answers correct · last studied{' '}
+              {new Date(attemptSummary.lastStudiedAt).toLocaleString()}
+            </p>
+          ) : null}
+          {attemptLoadError ? <p className="form-error" role="alert">Answer history could not be loaded from this device.</p> : null}
         </div>
         <div className="header-actions">
           <button className="secondary-button" disabled={pantry.cards.length === 0} onClick={onStudy} type="button">Study {pantry.cards.length} cards</button>
@@ -417,6 +442,8 @@ function PantryWorkspace({
       {showStudy ? (
         <StudySession
           cards={pantry.cards}
+          sourceName={pantry.sourceName}
+          sourcePages={pantry.sourcePages}
           onAttempt={(selectedIndex, isCorrect, cardId) =>
             pantryRepository.saveAttempt({
               pantryId: pantry.id,
@@ -650,66 +677,6 @@ function KeptCard({ card }: { card: StoredCard }) {
       <p>Correct answer: <strong>{card.options[card.correctIndex]}</strong></p>
       <footer>p. {card.sourcePage} · “{card.sourceQuote}”</footer>
     </article>
-  )
-}
-
-function StudySession({
-  cards,
-  onAttempt,
-  onBack,
-}: {
-  cards: StoredCard[]
-  onAttempt: (selectedIndex: number, isCorrect: boolean, cardId: string) => Promise<unknown>
-  onBack: () => void
-}) {
-  const [index, setIndex] = useState(0)
-  const [selected, setSelected] = useState<number>()
-  const [revealed, setRevealed] = useState(false)
-  const card = cards[index]
-
-  const next = () => {
-    setIndex((current) => (current + 1) % cards.length)
-    setSelected(undefined)
-    setRevealed(false)
-  }
-
-  const checkAnswer = () => {
-    if (selected === undefined) {
-      return
-    }
-
-    setRevealed(true)
-    void onAttempt(selected, selected === card.correctIndex, card.id)
-  }
-
-  return (
-    <section className="study-session">
-      <div className="study-header">
-        <div>
-          <div className="step-label">STUDY MODE</div>
-          <h2>Card {index + 1} of {cards.length}</h2>
-        </div>
-        <button className="secondary-button" onClick={onBack} type="button">Back to pantry</button>
-      </div>
-      <article className="study-card">
-        <h3>{card.question}</h3>
-        <div className="study-options">
-          {card.options.map((option, optionIndex) => {
-            const isCorrect = optionIndex === card.correctIndex
-            const className = revealed ? (isCorrect ? 'answer correct' : selected === optionIndex ? 'answer incorrect' : 'answer') : selected === optionIndex ? 'answer selected' : 'answer'
-            return (
-              <button className={className} key={`${card.id}-${optionIndex}`} onClick={() => !revealed && setSelected(optionIndex)} type="button">
-                <span>{String.fromCharCode(65 + optionIndex)}</span>{option}
-              </button>
-            )
-          })}
-        </div>
-        {revealed ? <p className="study-evidence">Source check · p. {card.sourcePage}: “{card.sourceQuote}”</p> : null}
-        <div className="study-actions">
-          {!revealed ? <button className="primary-button" disabled={selected === undefined} onClick={checkAnswer} type="button">Check answer</button> : <button className="primary-button" onClick={next} type="button">Next card <span aria-hidden="true">→</span></button>}
-        </div>
-      </article>
-    </section>
   )
 }
 
