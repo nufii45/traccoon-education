@@ -28,6 +28,11 @@ export interface GeneratedCard {
   question: string
   options: string[]
   correctIndex: number
+  /**
+   * Optional short context shown behind a disclosure, never as part of the
+   * answer. Learning content stays separate from verification metadata.
+   */
+  explanation?: string
   sourcePage: number
   sourceQuote: string
   sourceChunkId: string
@@ -51,6 +56,10 @@ export type CardRejectionReason =
   | 'options-invalid'
   | 'correct-index-invalid'
   | 'validation-failed'
+  | 'question-length'
+  | 'answer-length'
+  | 'semantic-mismatch'
+  | 'duplicate'
 
 export interface ModelCardAnalysis {
   cards: GeneratedCard[]

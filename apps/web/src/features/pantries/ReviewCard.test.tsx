@@ -42,12 +42,20 @@ describe('ReviewCard', () => {
 
   it('blocks a quote edited so it no longer matches the page', () => {
     const { onKeep } = renderCard()
+    fireEvent.click(screen.getByRole('button', { name: /View source/ }))
     fireEvent.change(screen.getByLabelText('Source quote'), {
       target: { value: 'Glycolysis splits glucose into pyruvate inside the cytoplasm of every cell' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Keep card' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Source quote is not present on the cited page.')
     expect(onKeep).not.toHaveBeenCalled()
+  })
+
+  it('keeps the full source quote behind the View source disclosure', () => {
+    renderCard()
+    expect(screen.queryByLabelText('Source quote')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Page 12 · View source/ }))
+    expect(screen.getByLabelText('Source quote')).toBeInTheDocument()
   })
 
   it('blocks duplicate options', () => {

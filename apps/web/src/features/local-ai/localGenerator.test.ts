@@ -212,6 +212,36 @@ describe('analyseModelCards with chunk-derived provenance', () => {
     expect(analyse([card, card2, card3, card4]).cards).toHaveLength(4)
   })
 
+  it('rejects a card whose answer the quote does not support as semantic-mismatch', () => {
+    const unsupported = {
+      ...card,
+      question: 'What is the mitochondrion often called?',
+      options: ['Sunlight', 'Rainfall', 'Gravity', 'Friction'],
+      correctIndex: 0,
+    }
+    const result = analyse([unsupported])
+
+    expect(result.cards).toEqual([])
+    expect(result.rejections).toContain('semantic-mismatch')
+  })
+
+  it('drops a near-duplicate question and reports it', () => {
+    const duplicate = {
+      ...card,
+      question: 'The mitochondrion is often called what?',
+    }
+    const result = analyse([card, duplicate])
+
+    expect(result.cards).toHaveLength(1)
+    expect(result.rejections).toContain('duplicate')
+  })
+
+  it('keeps an optional explanation on an admitted card', () => {
+    const result = analyse([{ ...card, explanation: 'It makes most of the cell’s ATP.' }])
+
+    expect(result.cards[0].explanation).toBe('It makes most of the cell’s ATP.')
+  })
+
   it('trims options and rejects case-insensitive duplicates', () => {
     const trimmed = analyse([{ ...card2, options: ['  The mother ', 'The father', 'Both parents', 'Neither parent'] }])
     expect(trimmed.cards[0].options[0]).toBe('The mother')

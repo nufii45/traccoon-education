@@ -83,12 +83,10 @@
 .rokki {
   display: grid;
   justify-items: center;
+  align-content: center;
   margin: 0;
-}
-
-.rokki img {
-  width: min(200px, 70%);
-  height: auto;
+  /* Generous whitespace so the idle float and hover tilt never clip. */
+  padding: var(--space-4);
 }
 
 /* ---------- Action cards ---------- */
@@ -269,10 +267,11 @@
 
 .pantryCard {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: var(--space-2);
   width: 100%;
-  min-height: 96px;
-  padding: var(--space-5);
+  height: 120px;
+  padding: var(--space-4);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-surface);
@@ -296,6 +295,13 @@
    line and truncates, since file names have no spaces to wrap at. */
 .pantryName {
   min-width: 0;
+  align-self: start;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+  max-height: 2.5em;
+  overflow: hidden;
   overflow-wrap: anywhere;
 }
 

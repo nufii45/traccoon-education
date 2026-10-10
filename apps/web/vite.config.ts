@@ -44,7 +44,7 @@ export default defineConfig({
       workbox: {
         // Default globs skip .mjs, .svg, .woff2 and .webp, which left the PDF.js
         // worker, icons, bundled fonts, Rokki art and treat art out of the offline cache.
-        globPatterns: ['**/*.{js,mjs,css,html,svg,woff2,webp}'],
+        globPatterns: ['**/*.{js,mjs,css,html,svg,woff2,webp,png}'],
         // The 11 MB PaddleOCR.js worker is saved by the runtime rule below on
         // the first local OCR warm-up, not in every install.
         globIgnores: ['**/node_modules/**/*', '**/worker-entry-*.js'],

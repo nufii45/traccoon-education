@@ -52,6 +52,7 @@ import { HomeDashboard } from './features/onboarding/HomeDashboard'
 import { OnboardingFlow } from './features/onboarding/OnboardingFlow'
 import { useOnboarding } from './features/onboarding/useOnboarding'
 import { TreatKitchen } from './features/treats/TreatKitchen'
+import { RokkiCorner } from './features/rokki/RokkiCorner'
 import './App.css'
 
 const IMPORT_PATH = '/pantries/import'
@@ -219,6 +220,7 @@ function AppRoutes() {
           <Route element={<QuizPicker pantries={summaries} />} path="/learn/quiz" />
           <Route element={<QuizSession />} path="/learn/quiz/:pantryId" />
           <Route element={<TreatKitchen />} path={TREATS_PATH} />
+          <Route element={<RokkiCorner />} path="/rokki" />
           <Route element={<Navigate replace to="/pantries" />} path="*" />
         </Routes>
       </main>

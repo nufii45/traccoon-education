@@ -23,6 +23,7 @@ import {
   getScore,
   studyReducer,
 } from './studyReducer'
+import type { StudyResult } from './studyReducer'
 import styles from './StudySession.module.css'
 
 interface StudySessionProps {
@@ -30,6 +31,10 @@ interface StudySessionProps {
   sourcePages: SourcePage[]
   sourceName: string
   onAttempt: (selectedIndex: number, isCorrect: boolean, cardId: string) => Promise<unknown>
+  /** Called after the last committed answer, before results are shown. */
+  onFinish?: (results: StudyResult[]) => Promise<void>
+  /** Flags a saved card answer when its source does not support presenting it as fact. */
+  evidenceFor?: (card: StoredCard) => { status: 'source-linked' | 'needs-review' }
   onBack: () => void
   /** Label for the exit button; Practice from the Learning Hub returns there instead. */
   backLabel?: string
@@ -52,6 +57,8 @@ export function StudySession({
   sourcePages,
   sourceName,
   onAttempt,
+  onFinish,
+  evidenceFor,
   onBack,
   backLabel = 'Back to pantry',
   modeLabel = 'STUDY MODE',
@@ -62,12 +69,16 @@ export function StudySession({
   const [selected, setSelected] = useState<number>()
   const [sourceCard, setSourceCard] = useState<StoredCard>()
   const [saveError, setSaveError] = useState<string>()
+  const [isSaving, setIsSaving] = useState(false)
+  const [isFinishing, setIsFinishing] = useState(false)
+  const pendingAction = useRef(false)
   const questionRef = useRef<HTMLHeadingElement>(null)
   const nextButtonRef = useRef<HTMLButtonElement>(null)
   const summaryRef = useRef<HTMLHeadingElement>(null)
 
   const card = getCurrentCard(state)
   const result = getCurrentResult(state)
+  const answerNeedsReview = card ? evidenceFor?.(card).status === 'needs-review' : false
 
   // Keep keyboard and screen-reader focus with the flow: the answer controls
   // unmount or disable after checking, so focus would otherwise drop to <body>.
@@ -86,21 +97,42 @@ export function StudySession({
     }
   }, [state.phase, state.position])
 
-  const checkAnswer = () => {
-    if (selected === undefined || !card) {
+  const checkAnswer = async () => {
+    if (selected === undefined || !card || pendingAction.current) {
       return
     }
-    hasInteracted.current = true
-    dispatch({ type: 'answer', selectedIndex: selected })
-    onAttempt(selected, selected === card.correctIndex, card.id).catch(() => {
-      setSaveError('This answer could not be saved on this device. You can keep studying.')
-    })
+    pendingAction.current = true
+    setIsSaving(true)
+    setSaveError(undefined)
+    try {
+      await onAttempt(selected, selected === card.correctIndex, card.id)
+      hasInteracted.current = true
+      dispatch({ type: 'answer', selectedIndex: selected })
+    } catch {
+      setSaveError('This answer could not be saved on this device. Try again.')
+    } finally {
+      pendingAction.current = false
+      setIsSaving(false)
+    }
   }
 
-  const continueSession = () => {
-    setSelected(undefined)
+  const continueSession = async () => {
+    if (pendingAction.current) return
+    pendingAction.current = true
     setSaveError(undefined)
-    dispatch({ type: 'continue' })
+    try {
+      if (state.position + 1 === state.cards.length && onFinish) {
+        setIsFinishing(true)
+        await onFinish(state.results)
+      }
+      setSelected(undefined)
+      dispatch({ type: 'continue' })
+    } catch {
+      setSaveError('Results could not be saved on this device. Try again.')
+    } finally {
+      pendingAction.current = false
+      setIsFinishing(false)
+    }
   }
 
   const restart = (nextCards: StoredCard[]) => {
@@ -136,7 +168,7 @@ export function StudySession({
                   <div>
                     <p className={styles.missedQuestion}>{missedCard.question}</p>
                     <p className={styles.missedAnswer}>
-                      Answer: {letter(missedCard.correctIndex)}, {missedCard.options[missedCard.correctIndex]}
+                      {evidenceFor?.(missedCard).status === 'needs-review' ? 'Saved answer to check' : 'Answer'}: {letter(missedCard.correctIndex)}, {missedCard.options[missedCard.correctIndex]}
                     </p>
                   </div>
                   {hasSource(missedCard) ? (
@@ -218,7 +250,7 @@ export function StudySession({
               >
                 <span>{letter(optionIndex)}</span>
                 {option}
-                {result && isCorrect ? <em className={styles.answerTag}><Icon icon={Tick02Icon} size={16} />Correct answer</em> : null}
+                {result && isCorrect ? <em className={styles.answerTag}><Icon icon={Tick02Icon} size={16} />{answerNeedsReview ? 'Saved answer' : 'Correct answer'}</em> : null}
                 {result && isPicked && !isCorrect ? <em className={styles.answerTag}><Icon icon={Cancel01Icon} size={16} />Your answer</em> : null}
               </button>
             )
@@ -229,11 +261,18 @@ export function StudySession({
             <div className={result.isCorrect ? styles.feedbackCorrect : styles.feedbackWrong}>
               <p className={styles.feedbackTitle}>
                 <Icon icon={result.isCorrect ? CheckmarkCircle02Icon : CancelCircleIcon} size={24} />
-                {result.isCorrect ? 'Correct.' : 'Not quite.'}
+                {answerNeedsReview
+                  ? result.isCorrect ? 'Matches the saved answer.' : 'Saved answer needs review.'
+                  : result.isCorrect ? 'Correct.' : 'Not quite.'}
               </p>
-              {result.isCorrect ? null : (
+              {answerNeedsReview ? (
+                <p>This card says {letter(card.correctIndex)}, {card.options[card.correctIndex]}. Check it against the source.</p>
+              ) : result.isCorrect ? null : (
                 <p>The answer is {letter(card.correctIndex)}, {card.options[card.correctIndex]}.</p>
               )}
+              {card.explanation?.trim() ? (
+                <p className={styles.feedbackExplanation}>{card.explanation.trim()}</p>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -246,13 +285,13 @@ export function StudySession({
                   <Icon icon={FileSearchIcon} />See source · p.{card.sourcePage}
                 </button>
               ) : null}
-              <button className={`primary-button ${styles.tapTarget}`} onClick={continueSession} ref={nextButtonRef} type="button">
-                {state.position + 1 === state.cards.length ? 'See results' : 'Next card'} <Icon icon={ArrowRight02Icon} />
+              <button className={`primary-button ${styles.tapTarget}`} disabled={isFinishing} onClick={() => void continueSession()} ref={nextButtonRef} type="button">
+                {isFinishing ? 'Saving results…' : state.position + 1 === state.cards.length ? 'See results' : 'Next card'} <Icon icon={ArrowRight02Icon} />
               </button>
             </>
           ) : (
-            <button className={`primary-button ${styles.tapTarget}`} disabled={selected === undefined} onClick={checkAnswer} type="button">
-              Check answer
+            <button className={`primary-button ${styles.tapTarget}`} disabled={selected === undefined || isSaving} onClick={() => void checkAnswer()} type="button">
+              {isSaving ? 'Saving answer…' : 'Check answer'}
             </button>
           )}
         </div>
