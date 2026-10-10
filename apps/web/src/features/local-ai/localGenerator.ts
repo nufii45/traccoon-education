@@ -218,9 +218,17 @@ const parseWithRepair = (candidate: string): unknown => {
   return strict !== undefined ? strict : tryParse(stripTrailingCommas(candidate))
 }
 
+// Qwen3.5 opens its reply with a <think> block. Generation switches thinking
+// off, which still leaves an empty block at the start, and reasoning text may
+// contain braces that would derail JSON extraction. A stray closing tag drops
+// everything before it.
+const stripThinking = (content: string): string =>
+  content.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*<\/think>/i, '')
+
 // Returns parsed model output on success or `undefined` on unrecoverable
 // output. Never throws.
-const extractJson = (content: string): unknown => {
+const extractJson = (rawContent: string): unknown => {
+  const content = stripThinking(rawContent)
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
   const base = (fenced ?? content).trim()
   if (base.length === 0) {

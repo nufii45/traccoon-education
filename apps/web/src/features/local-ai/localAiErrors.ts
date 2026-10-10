@@ -32,6 +32,9 @@ interface FailureRule {
 
 const MAX_DETAIL_CHARS = 160
 
+export const GPU_UNAVAILABLE_MESSAGE =
+  'This browser could not start WebGPU for the local model. If the model worked here before, fully close and reopen the browser, because it can turn WebGPU off for a page after the GPU resets. Otherwise update your browser or graphics drivers, or author cards manually.'
+
 // Order matters: the first matching rule wins, so specific causes come before
 // the broad download rule.
 const FAILURE_RULES: FailureRule[] = [
@@ -47,14 +50,20 @@ const FAILURE_RULES: FailureRule[] = [
     summary: () => 'The selected pages are too long for the local model. Choose fewer or shorter pages, then try again.',
   },
   {
+    // After the GPU resets, Chromium browsers can refuse WebGPU to the page
+    // that was using it until the browser restarts, so this also follows a
+    // GPU reset on hardware that ran the model before.
     pattern: /WebGPUNotAvailableError|WebGPUNotFoundError|Cannot find WebGPU|Unable to find a compatible GPU|Cannot initialize runtime because|requestAdapter|requestDevice/i,
-    summary: () => 'This browser could not start WebGPU for the local model. Update your browser or graphics drivers, or author cards manually.',
+    summary: () => GPU_UNAVAILABLE_MESSAGE,
     detail: true,
     unsupported: true,
   },
   {
-    pattern: /DeviceLostError|device was lost|device lost|out of memory|insufficient memory|GPUOutOfMemoryError|allocation failed|Failed to allocate/i,
-    summary: () => 'The GPU stopped while running the model, usually because it ran out of memory. Close other tabs that use the GPU, then try again.',
+    // The GPU was reset or ran out of memory mid-run. The runtime disposes
+    // itself when its device is lost, so the failure usually surfaces as
+    // "The current Object has already been disposed".
+    pattern: /already been disposed|Instance\.dispose|DeviceLostError|device was lost|device lost|lost the device|DXGI_ERROR|out of memory|insufficient memory|GPUOutOfMemoryError|allocation failed|Failed to allocate/i,
+    summary: () => 'The GPU stopped responding while the local model was running, so the browser reset it. Close other tabs that use the GPU, select fewer pages, then try again.',
     resetEngine: true,
   },
   {
@@ -64,7 +73,7 @@ const FAILURE_RULES: FailureRule[] = [
   },
   {
     pattern: /QuotaExceededError|quota|no space left|disk full/i,
-    summary: () => 'There is not enough free storage to keep the local model (about 1 GB). Free some space, then try again.',
+    summary: () => 'There is not enough free storage to keep the local model (a few gigabytes). Free some space, then try again.',
   },
   {
     pattern: /failed to fetch|network ?error|network request failed|load failed|ERR_[A-Z_]+|Cannot fetch|Unable to fetch|received status|request failed|caches is not defined|CacheStorage|Failed to execute '(?:add|addAll|put|match|open)' on 'Cache/i,

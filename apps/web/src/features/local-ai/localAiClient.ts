@@ -1,4 +1,4 @@
-import { classifyLocalAiFailure, type LocalAiFailurePhase } from './localAiErrors'
+import { classifyLocalAiFailure, GPU_UNAVAILABLE_MESSAGE, type LocalAiFailurePhase } from './localAiErrors'
 import {
   analyseModelCards,
   buildLocalGenerationPrompt,
@@ -169,12 +169,28 @@ const discardWorker = () => {
   epoch += 1
 }
 
+// Asks the browser to keep this site's storage under disk pressure, so the
+// downloaded model stays available offline. Chromium answers without a
+// prompt. A refusal changes nothing: the model still loads from the regular
+// cache, and a missing file is reported when the model next loads.
+const requestPersistentModelStorage = async () => {
+  try {
+    const storage = typeof navigator === 'undefined' ? undefined : navigator.storage
+    if (storage?.persist && !(await storage.persisted?.())) {
+      await storage.persist()
+    }
+  } catch {
+    // Not supported in this browser.
+  }
+}
+
 const startEngineLoad = async (
   modelId: string,
   onStatus?: (status: LocalAiStatus) => void,
 ): Promise<WebWorkerMLCEngine> => {
   const startedAt = epoch
-  onStatus?.({ stage: 'downloading', detail: `Preparing ${modelId} on this deviceΓÇª`, progress: 0 })
+  void requestPersistentModelStorage()
+  onStatus?.({ stage: 'downloading', detail: `Preparing ${modelId} on this device…`, progress: 0 })
   const webllm = await loadWebLlm()
   if (epoch !== startedAt) {
     throw new LocalGenerationCancelledError()
@@ -294,7 +310,7 @@ const startEngine = async (
 
     request.onStatus?.({
       stage: 'downloading',
-      detail: `This GPU could not run ${initialModelId}. Trying ${LOCAL_COMPATIBILITY_MODEL_ID}ΓÇª`,
+      detail: `This GPU could not run ${initialModelId}. Trying ${LOCAL_COMPATIBILITY_MODEL_ID}…`,
       progress: 0,
     })
     const activeEngine = await abortable(loadEngine(LOCAL_COMPATIBILITY_MODEL_ID, request.onStatus), request.signal)
@@ -326,7 +342,13 @@ const createCompletion = async (
       signal,
     )
   } catch (error) {
-    if (signal?.aborted || error instanceof LocalGenerationCancelledError) {
+    // A lost GPU or crashed engine fails the same way without JSON mode, and
+    // the rerun would only hold the broken engine longer.
+    if (
+      signal?.aborted
+      || error instanceof LocalGenerationCancelledError
+      || classifyLocalAiFailure(error, 'run').resetEngine
+    ) {
       throw error
     }
     const completion = await withoutJsonMode()
@@ -345,7 +367,7 @@ export const generateCardsLocally = async (
   let phase: LocalAiFailurePhase = 'start'
 
   request.signal?.addEventListener('abort', cancel, { once: true })
-  request.onStatus?.({ stage: 'checking', detail: 'Checking this browser for WebGPUΓÇª' })
+  request.onStatus?.({ stage: 'checking', detail: 'Checking this browser for WebGPU…' })
 
   try {
     throwIfCancelled(request.signal)
@@ -356,12 +378,7 @@ export const generateCardsLocally = async (
 
     const report = await abortable(probeGpu(gpu), request.signal)
     if (report.adapter === 'missing') {
-      throw reportUnsupported(
-        request,
-        new LocalGenerationUnsupportedError(
-          'WebGPU is available in this browser, but it found no compatible GPU. Update your graphics drivers or browser, or author cards manually.',
-        ),
-      )
+      throw reportUnsupported(request, new LocalGenerationUnsupportedError(GPU_UNAVAILABLE_MESSAGE))
     }
 
     const { activeEngine, modelId } = await startEngine(chooseModelId(report), request)
@@ -377,8 +394,8 @@ export const generateCardsLocally = async (
       request.onStatus?.({
         stage: 'generating',
         detail: attempt === 0
-          ? 'Generating cards locally in your browserΓÇª'
-          : `Checking another local response (${attempt + 1} of ${MAX_REGENERATION_RETRIES + 1})ΓÇª`,
+          ? 'Generating cards locally in your browser…'
+          : `Checking another local response (${attempt + 1} of ${MAX_REGENERATION_RETRIES + 1})…`,
       })
       const completion = await createCompletion(
         activeEngine,
@@ -393,6 +410,10 @@ export const generateCardsLocally = async (
           ],
           temperature: ATTEMPT_TEMPERATURES[Math.min(attempt, ATTEMPT_TEMPERATURES.length - 1)],
           max_tokens: 1_200,
+          // Qwen3.5 reasons in a <think> block by default, which spends the
+          // token budget and GPU time before any JSON appears. This is the
+          // model's documented non-thinking mode.
+          extra_body: { enable_thinking: false },
         },
         request.signal,
       )
