@@ -445,6 +445,16 @@ h2 {
   color: var(--color-primary-hover);
 }
 
+/* Shown once Cloud OCR has read a page of this PDF. */
+.privacy-callout.cloud-callout {
+  border-left-color: var(--color-info);
+  background: var(--color-info-surface);
+}
+
+.privacy-callout.cloud-callout strong {
+  color: var(--color-info);
+}
+
 /* ---------- Welcome and import ---------- */
 
 .welcome-workspace,
@@ -583,6 +593,16 @@ select:focus-visible {
   margin: var(--space-1) 0 0;
   color: var(--color-copy);
   font-size: var(--text-label);
+}
+
+/* Text source of each selected page: PDF text, On-device OCR, Cloud OCR, or No text layer. */
+.page-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .page-picker {
@@ -1104,6 +1124,17 @@ fieldset.manual-options legend {
   color: var(--color-white);
 }
 
+/* Cloud Enhanced cards and Cloud OCR pages never share the on-device styling. */
+.local-badge.cloud {
+  background: var(--color-info-surface);
+  color: var(--color-info);
+}
+
+.local-badge.needs-text {
+  background: var(--color-warning-surface);
+  color: var(--color-neutral);
+}
+
 .manual-options input:not([type='radio']) {
   min-height: 40px;
   padding: var(--space-1) 0;
@@ -1356,5 +1387,23 @@ fieldset.manual-options legend {
   .form-actions > button,
   .study-actions > button {
     flex: 1 1 auto;
+  }
+}
+
+/* Local Private / Cloud Enhanced status at the foot of the sidebar. */
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding: var(--space-3) var(--space-2) 0;
+  border-top: 2px solid var(--color-border);
+  color: var(--color-neutral);
+  font: 700 var(--text-label) var(--font-sans);
+}
+
+@media (max-width: 760px) {
+  .sidebar-footer {
+    display: none;
   }
 }

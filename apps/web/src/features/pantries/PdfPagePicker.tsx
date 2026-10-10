@@ -1,15 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 import { ArrowLeft02Icon, ArrowRight02Icon, File01Icon, Grid2X2Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Dialog } from '../../components/Dialog/Dialog'
 import { Icon } from '../../components/Icon/Icon'
 import { MAX_SELECTED_PAGES } from '../local-ai/policy'
+import { hasUsablePageText, NO_TEXT_LAYER_LABEL, pageTextLabel } from '../local-ai/provenance'
+import type { SourcePage } from '../local-ai/types'
 import type { PdfSource } from './pdfText'
 import styles from './PdfPagePicker.module.css'
 
 export const GRID_PAGES_PER_VIEW = 4
 
 type ViewMode = 'single' | 'grid'
+
+/** Where this page's text comes from, or that it has none yet and needs OCR. */
+function PageTextSource({ id, page }: { id: string; page: SourcePage }) {
+  const className = !hasUsablePageText(page)
+    ? `${styles.textSource} ${styles.needsText}`
+    : page.textSource === 'cloud-ocr' ? `${styles.textSource} ${styles.cloudText}` : styles.textSource
+  return <span className={className} id={id}>{pageTextLabel(page)}</span>
+}
 
 function PdfPagePreview({ document, pageNumber, maxSize = 1600 }: { document: PDFDocumentProxy; pageNumber: number; maxSize?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -63,6 +73,7 @@ interface PdfPagePickerProps {
 }
 
 export function PdfPagePicker({ isOpen, source, sourceName, selectedPages, onClose, onSave }: PdfPagePickerProps) {
+  const textSourceId = useId()
   const [pageIndex, setPageIndex] = useState(0)
   const [viewMode, setViewMode] = useState<ViewMode>('single')
   const [draftPages, setDraftPages] = useState(selectedPages)
@@ -97,6 +108,7 @@ export function PdfPagePicker({ isOpen, source, sourceName, selectedPages, onClo
   const canGoForward = viewStart + step < pageCount
 
   const isSelected = draftPages.includes(page.pageNumber)
+  const hasPagesWithoutText = source.pages.some((sourcePage) => !hasUsablePageText(sourcePage))
   const lastVisible = visiblePages[visiblePages.length - 1]
   const positionLabel = isGrid
     ? `Pages ${visiblePages[0].pageNumber}–${lastVisible.pageNumber} of ${pageCount}`
@@ -131,6 +143,9 @@ export function PdfPagePicker({ isOpen, source, sourceName, selectedPages, onClo
           <div className={styles.intro}>
             <p className={styles.filename} title={sourceName}>{sourceName}</p>
             <p>Choose 1–{MAX_SELECTED_PAGES} pages for your first card batch.</p>
+            {hasPagesWithoutText ? (
+              <p>Pages marked “{NO_TEXT_LAYER_LABEL}” look scanned. After you save, you can read them with OCR.</p>
+            ) : null}
           </div>
           <div className={styles.toolbar}>
             <div aria-label="Preview layout" className={styles.viewToggle} role="group">
@@ -152,6 +167,7 @@ export function PdfPagePicker({ isOpen, source, sourceName, selectedPages, onClo
                   const selected = draftPages.includes(gridPage.pageNumber)
                   return (
                     <button
+                      aria-describedby={`${textSourceId}-${gridPage.pageNumber}`}
                       aria-label={selected ? `Page ${gridPage.pageNumber} selected` : `Select page ${gridPage.pageNumber}`}
                       aria-pressed={selected}
                       className={styles.gridCell}
@@ -165,6 +181,7 @@ export function PdfPagePicker({ isOpen, source, sourceName, selectedPages, onClo
                         {selected ? <Icon icon={Tick02Icon} size={16} /> : null}
                         Page {gridPage.pageNumber}
                       </span>
+                      <PageTextSource id={`${textSourceId}-${gridPage.pageNumber}`} page={gridPage} />
                     </button>
                   )
                 })}
@@ -178,8 +195,9 @@ export function PdfPagePicker({ isOpen, source, sourceName, selectedPages, onClo
           </div>
           <div className={styles.pageControls}>
             <span aria-live="polite" className={styles.pageNumber}>{positionLabel}</span>
+            {isGrid ? null : <PageTextSource id={`${textSourceId}-single`} page={page} />}
             {isGrid ? null : (
-              <button aria-pressed={isSelected} className={`secondary-button ${styles.selectPage}`} disabled={atLimit && !isSelected} onClick={() => togglePage(page.pageNumber)} type="button">
+              <button aria-describedby={`${textSourceId}-single`} aria-pressed={isSelected} className={`secondary-button ${styles.selectPage}`} disabled={atLimit && !isSelected} onClick={() => togglePage(page.pageNumber)} type="button">
                 {isSelected ? <Icon icon={Tick02Icon} /> : null}
                 {isSelected ? `Page ${page.pageNumber} selected` : `Select page ${page.pageNumber}`}
               </button>

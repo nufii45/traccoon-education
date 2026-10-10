@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
-import { Add01Icon, ArrowDown01Icon, File01Icon, PencilEdit02Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, ArrowDown01Icon, CloudIcon, File01Icon, PencilEdit02Icon, SquareLock02Icon } from '@hugeicons/core-free-icons'
 import rokkiMark from '../assets/rokki-educ.webp'
 import { Icon } from '../components/Icon/Icon'
 import { groupPantriesByRecency, isManualPantry } from '../features/pantries/pantryGroups'
@@ -27,6 +27,8 @@ export function Sidebar({ summaries, activePantryId, onNewSource }: SidebarProps
   const showGroupLabels = pantryGroups.length > 1
   const isInPantries = isPantriesPath(pathname)
   const isActive = (item: NavItem) => (item.id === 'pantries' ? isInPantries : pathname.startsWith(item.to))
+  // The open pantry used Cloud OCR, so the Local Private claim does not apply to it.
+  const isActiveCloudEnhanced = summaries.some((summary) => summary.id === activePantryId && summary.generationMode === 'cloud-enhanced')
 
   return (
     <aside className="sidebar" aria-label="Pantries">
@@ -113,6 +115,12 @@ export function Sidebar({ summaries, activePantryId, onNewSource }: SidebarProps
         </section>
       ) : null}
 
+      <div className="sidebar-footer">
+        <Icon icon={isActiveCloudEnhanced ? CloudIcon : SquareLock02Icon} size={16} />
+        {isActiveCloudEnhanced
+          ? 'Cloud Enhanced: page images sent to Cloud OCR with your consent'
+          : 'Local Private: no study content sent for generation'}
+      </div>
     </aside>
   )
 }

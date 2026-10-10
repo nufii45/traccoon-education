@@ -50,8 +50,10 @@ export const validateGeneratedCard = (
     errors.push('Source quote is not present on the cited page.')
   }
 
-  if (card.generationMode !== 'local-private') {
-    errors.push('P0 cards must use local-private generation.')
+  // Cloud Enhanced cards come from Cloud OCR page text; generation itself
+  // still runs on this device, so both modes pass the same evidence checks.
+  if (card.generationMode !== 'local-private' && card.generationMode !== 'cloud-enhanced') {
+    errors.push('Cards must be Local Private or Cloud Enhanced.')
   }
 
   return { valid: errors.length === 0, errors }

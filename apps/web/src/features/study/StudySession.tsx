@@ -10,6 +10,7 @@ import {
   Tick02Icon,
 } from '@hugeicons/core-free-icons'
 import { Icon } from '../../components/Icon/Icon'
+import { cardOriginLabel, citedTextSource, generationModeForPages, TEXT_SOURCE_LABELS } from '../local-ai/provenance'
 import type { SourcePage } from '../local-ai/types'
 import { hasSource } from '../pantries/cardSource'
 import type { StoredCard } from '../pantries/repository'
@@ -199,6 +200,10 @@ export function StudySession({
     return null
   }
 
+  // A pantry with any Cloud OCR page is Cloud Enhanced, and so are its cards.
+  const pantryMode = generationModeForPages(sourcePages)
+  const textSource = hasSource(card) ? citedTextSource(card, sourcePages) : undefined
+
   return (
     <section className="study-session" aria-labelledby="study-card-heading">
       <div className="study-header">
@@ -221,7 +226,9 @@ export function StudySession({
       {saveError ? <p className="form-error" role="alert">{saveError}</p> : null}
       <article className="study-card">
         <p className={styles.cardMeta}>
-          {hasSource(card) ? `From page ${card.sourcePage}` : 'No source'} · {card.generationMethod === 'manual' ? 'Manual' : 'On-device'}
+          {hasSource(card)
+            ? `From page ${card.sourcePage}${textSource ? ` (${TEXT_SOURCE_LABELS[textSource]})` : ''}`
+            : 'No source'} · {cardOriginLabel(card, pantryMode)}
           {card.isEdited ? ' · Edited' : ''}
         </p>
         <h3 ref={questionRef} tabIndex={-1}>{card.question}</h3>
