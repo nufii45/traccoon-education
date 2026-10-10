@@ -28,8 +28,9 @@ type OcrRun =
 interface PageOcrPanelProps {
   /** The open PDF, used only to render the selected pages to images on this device. */
   document: PDFDocumentProxy
-  /** Selected pages that have no usable text yet, in page order. */
+  /** Selected pages to read, in page order. Missing-text pages take priority. */
   pages: SourcePage[]
+  hasMissingText: boolean
   onPageText: (pageNumber: number, text: string, textSource: OcrTextSource) => void
   onBusyChange: (busy: boolean) => void
   onStartManual: () => void
@@ -127,12 +128,12 @@ const toPercent = (progress: number | undefined): number | undefined => {
 const capitalise = (value: string) => value.charAt(0).toLocaleUpperCase() + value.slice(1)
 
 /**
- * OCR choices for selected pages without a text layer. On-device OCR runs only
+ * OCR choices for selected pages. On-device OCR runs only
  * in this browser. Cloud OCR runs only after the learner confirms the consent
  * dialog for exactly these pages; it is never started as a fallback.
  * Page images and OCR text are never logged or stored here.
  */
-export function PageOcrPanel({ document, pages, onPageText, onBusyChange, onStartManual }: PageOcrPanelProps) {
+export function PageOcrPanel({ document, pages, hasMissingText, onPageText, onBusyChange, onStartManual }: PageOcrPanelProps) {
   const headingId = useId()
   const [run, setRun] = useState<OcrRun>({ phase: 'idle' })
   const [consentPages, setConsentPages] = useState<number[]>()
@@ -259,7 +260,7 @@ export function PageOcrPanel({ document, pages, onPageText, onBusyChange, onStar
         pageNumber = page.pageNumber
         const reading = { phase: 'reading', engine: 'cloud', pageNumber: page.pageNumber, position: index + 1, total: queue.length } as const
         update(controller, { ...reading, step: 'rendering' })
-        const image = await renderPdfPageImage(document, page.pageNumber, { signal })
+        const image = await renderPdfPageImage(document, page.pageNumber, { signal, format: 'image/jpeg' })
         const result = await runCloudOcrForPage({
           image,
           pageNumber: page.pageNumber,
@@ -332,11 +333,14 @@ export function PageOcrPanel({ document, pages, onPageText, onBusyChange, onStar
     <section aria-labelledby={headingId} className={styles.panel}>
       <h2 className={styles.heading} id={headingId}>
         <Icon icon={ImageNotFound01Icon} />
-        {capitalise(pageList)} {pages.length === 1 ? 'has' : 'have'} no text layer
+        {hasMissingText
+          ? `${capitalise(pageList)} ${pages.length === 1 ? 'has' : 'have'} no text layer`
+          : `Read ${pageList} with OCR`}
       </h2>
       <p className={styles.copy}>
-        Rokki writes and checks cards only from page text, and {pages.length === 1 ? 'this page looks' : 'these pages look'} scanned
-        or image-only. Read {pages.length === 1 ? 'it' : 'them'} with OCR, choose different pages, or write cards by hand.
+        {hasMissingText
+          ? `Rokki writes and checks cards only from page text, and ${pages.length === 1 ? 'this page looks' : 'these pages look'} scanned or image-only. Read ${pages.length === 1 ? 'it' : 'them'} with OCR, choose different pages, or write cards by hand.`
+          : `These pages already have PDF text. If it looks incomplete, you can read ${pages.length === 1 ? 'the page' : 'them'} again with OCR before creating the pantry.`}
       </p>
 
       <div className={styles.choices}>

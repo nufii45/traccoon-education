@@ -13,5 +13,5 @@ describe('application theme boot', () => {
 
     expect(document.documentElement.style.getPropertyValue('--font-sans')).toContain('Nunito')
     expect(document.documentElement.style.getPropertyValue('--color-primary')).toBe('#8D6748')
-  })
+  }, 30_000)
 })

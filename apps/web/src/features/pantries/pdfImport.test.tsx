@@ -40,6 +40,25 @@ const renderImportWorkspace = () => {
 }
 
 describe('PDF import selection', () => {
+  it('offers Cloud OCR for a selected page with PDF text and waits for consent', async () => {
+    vi.mocked(loadPdfSource).mockResolvedValue(makeSource())
+    const fetchRequest = vi.spyOn(globalThis, 'fetch')
+    renderImportWorkspace()
+    upload()
+    await screen.findByRole('dialog', { name: 'Select pages' })
+    fireEvent.click(screen.getByRole('button', { name: 'Select page 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save selection' }))
+
+    expect(screen.getByRole('heading', { name: 'Read page 1 with OCR' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: /Use Cloud OCR/ }))
+    expect(screen.getByRole('dialog', { name: 'Use Cloud OCR for these pages?' })).toBeVisible()
+    expect(screen.getByText(/Only images of page 1/)).toBeVisible()
+    expect(fetchRequest).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep on this device' }))
+    expect(fetchRequest).not.toHaveBeenCalled()
+    fetchRequest.mockRestore()
+  })
+
   it('opens previews after import and creates a pantry using only saved pages', async () => {
     const source = makeSource()
     vi.mocked(loadPdfSource).mockResolvedValue(source)

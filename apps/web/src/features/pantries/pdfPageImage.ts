@@ -6,7 +6,9 @@ export const OCR_MAX_LONG_SIDE_PX = 2000
 
 const abortError = () => new DOMException('Page rendering was cancelled.', 'AbortError')
 
-const canvasToPng = (canvas: HTMLCanvasElement): Promise<Blob> =>
+type OcrImageFormat = 'image/png' | 'image/jpeg'
+
+const canvasToImage = (canvas: HTMLCanvasElement, format: OcrImageFormat): Promise<Blob> =>
   new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (blob) {
@@ -14,19 +16,20 @@ const canvasToPng = (canvas: HTMLCanvasElement): Promise<Blob> =>
       } else {
         reject(new Error('This page could not be turned into an image.'))
       }
-    }, 'image/png')
+    }, format, format === 'image/jpeg' ? 0.9 : undefined)
   })
 
 /**
- * Renders one PDF page to a PNG on this device with PDF.js, for OCR. The image
+ * Renders one PDF page on this device with PDF.js, for OCR. The image
  * is returned to the caller only; nothing is stored or sent from here.
  */
 export const renderPdfPageImage = async (
   document: PDFDocumentProxy,
   pageNumber: number,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; format?: OcrImageFormat } = {},
 ): Promise<Blob> => {
   const { signal } = options
+  const format = options.format ?? 'image/png'
   if (signal?.aborted) {
     throw abortError()
   }
@@ -43,12 +46,12 @@ export const renderPdfPageImage = async (
     const viewport = page.getViewport({ scale })
     canvas.width = Math.ceil(viewport.width)
     canvas.height = Math.ceil(viewport.height)
-    renderTask = page.render({ canvas, viewport })
+    renderTask = page.render({ canvas, viewport, ...(format === 'image/jpeg' ? { background: '#ffffff' } : {}) })
     await renderTask.promise
     if (signal?.aborted) {
       throw abortError()
     }
-    return await canvasToPng(canvas)
+    return await canvasToImage(canvas, format)
   } finally {
     signal?.removeEventListener('abort', cancelRender)
     // Release the bitmap memory right away; scanned pages can be large.
