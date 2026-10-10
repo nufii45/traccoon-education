@@ -7,8 +7,10 @@
   "preview_urls": true,
   "build": {
     // pnpm 11.20.0 and apps/web/pnpm-lock.yaml are authoritative (AGENTS.md);
-    // the build image ships an older pnpm.
-    "command": "npx --yes pnpm@11.20.0 install --frozen-lockfile && npx --yes pnpm@11.20.0 build",
+    // the build image ships an older pnpm. --ignore-workspace keeps install
+    // scoped to apps/web so a stray root pnpm-workspace.yaml in the build
+    // checkout cannot trigger "packages field missing or empty".
+    "command": "npx --yes pnpm@11.20.0 install --frozen-lockfile --ignore-workspace && npx --yes pnpm@11.20.0 build",
     "cwd": "apps/web"
   },
   "assets": {
