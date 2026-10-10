@@ -9,7 +9,7 @@ import { cloudMarkdownToPlainText } from './cloudOcrMarkdown'
 import type { CloudOcrConsent, CloudOcrPageResult, CloudOcrProgress } from './types'
 
 const API_BASE = '/api/cloud-ocr'
-const DEFAULT_POLL_INTERVAL_MS = 3_000
+const DEFAULT_POLL_INTERVAL_MS = 1_500
 const DEFAULT_TIMEOUT_MS = 180_000
 // Mirrors MAX_CLOUD_OCR_UPLOAD_BYTES in apps/web/server/cloudOcrProxy.ts.
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -224,8 +224,12 @@ export async function runCloudOcrForPage(input: {
       throw new CloudOcrError('malformed-response')
     }
 
-    for (;;) {
-      await wait(pollIntervalMs, run)
+    // The provider may finish before the first interval elapses. Check once
+    // immediately, then wait between subsequent checks.
+    for (let firstCheck = true;; firstCheck = false) {
+      if (!firstCheck) {
+        await wait(pollIntervalMs, run)
+      }
       const job = await requestJson(`${API_BASE}/jobs/${jobId}`, { method: 'GET' }, run)
       const state = readField(job, 'state')
       if (state === 'pending' || state === 'running') {

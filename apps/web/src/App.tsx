@@ -431,13 +431,14 @@ function ImportWorkspace({
                 ))}
               </ul>
             ) : null}
-            {pdfSource && pagesNeedingText.length > 0 ? (
+            {pdfSource && selectedSourcePages.length > 0 ? (
               <PageOcrPanel
                 document={pdfSource.document}
+                hasMissingText={pagesNeedingText.length > 0}
                 onBusyChange={setIsOcrBusy}
                 onPageText={(pageNumber, text, textSource) => applyOcrText(pageNumber, text, textSource, pdfSource.document)}
                 onStartManual={onStartManual}
-                pages={pagesNeedingText}
+                pages={pagesNeedingText.length > 0 ? pagesNeedingText : selectedSourcePages}
               />
             ) : null}
             <button

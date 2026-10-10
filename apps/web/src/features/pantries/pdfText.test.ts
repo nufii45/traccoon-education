@@ -1,6 +1,6 @@
 import { getDocument } from 'pdfjs-dist'
 import { describe, expect, it, vi } from 'vitest'
-import { hasUsableTextLayer, loadPdfSource, normalisePdfText, PdfTextLayerError } from './pdfText'
+import { hasUsableTextLayer, loadPdfSource, normalisePdfText } from './pdfText'
 
 vi.mock('pdfjs-dist', () => ({ getDocument: vi.fn(), GlobalWorkerOptions: {} }))
 
@@ -29,7 +29,7 @@ describe('PDF text preparation', () => {
   it('retains the local document for previews until the caller releases it', async () => {
     const { document, destroy, page } = mockDocument('  Readable source text.  ')
     const source = await loadPdfSource(pdfFile())
-    expect(source.pages).toEqual([{ id: 'page-1', pageNumber: 1, text: 'Readable source text.' }])
+    expect(source.pages).toEqual([{ id: 'page-1', pageNumber: 1, text: 'Readable source text.', textSource: 'text-layer' }])
     expect(source.document).toBe(document)
     expect(page.cleanup).toHaveBeenCalledOnce()
     expect(destroy).not.toHaveBeenCalled()
@@ -37,9 +37,12 @@ describe('PDF text preparation', () => {
     expect(destroy).toHaveBeenCalledOnce()
   })
 
-  it('destroys documents without a usable text layer', async () => {
+  it('keeps scanned pages available for OCR until the caller releases the document', async () => {
     const { destroy } = mockDocument('   ')
-    await expect(loadPdfSource(pdfFile())).rejects.toBeInstanceOf(PdfTextLayerError)
+    const source = await loadPdfSource(pdfFile())
+    expect(source.pages).toEqual([{ id: 'page-1', pageNumber: 1, text: '', textSource: 'text-layer' }])
+    expect(destroy).not.toHaveBeenCalled()
+    await source.destroy()
     expect(destroy).toHaveBeenCalledOnce()
   })
 
