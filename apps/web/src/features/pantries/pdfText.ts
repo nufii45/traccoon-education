@@ -9,9 +9,11 @@ export const normalisePdfText = (value: string) => value.replace(/\s+/g, ' ').tr
 export const hasUsableTextLayer = (pages: Array<Pick<SourcePage, 'text' | 'pageNumber'>>) =>
   pages.some((page) => normalisePdfText(page.text).length > 0)
 
+// loadPdfSource no longer throws this: image-only pages are offered OCR
+// instead. Kept because existing imports still reference it.
 export class PdfTextLayerError extends Error {
   constructor() {
-    super('This PDF does not contain selectable text. Try a text-based PDF; OCR is not part of this demo.')
+    super('This PDF does not contain selectable text.')
     this.name = 'PdfTextLayerError'
   }
 }
@@ -42,14 +44,12 @@ export const loadPdfSource = async (file: File): Promise<PdfSource> => {
           .join(' '),
       )
 
-      pages.push({ id: `page-${pageNumber}`, pageNumber, text })
+      pages.push({ id: `page-${pageNumber}`, pageNumber, text, textSource: 'text-layer' })
       page.cleanup()
     }
 
-    if (!hasUsableTextLayer(pages)) {
-      throw new PdfTextLayerError()
-    }
-
+    // Scanned or image-only pages keep empty text here. The import view offers
+    // OCR for them when they are selected, so the document stays open.
     return { pages, document, destroy: () => loadingTask.destroy() }
   } catch (reason) {
     await loadingTask.destroy()

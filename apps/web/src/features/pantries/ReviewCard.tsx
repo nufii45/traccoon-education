@@ -2,6 +2,13 @@ import { useState } from 'react'
 import { Cancel01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Icon } from '../../components/Icon/Icon'
 import { validateGeneratedCard } from '../local-ai/cardRules'
+import {
+  cardOriginLabel,
+  citedTextSource,
+  displayModeFor,
+  generationModeForPages,
+  TEXT_SOURCE_LABELS,
+} from '../local-ai/provenance'
 import type { GeneratedCard, SourcePage } from '../local-ai/types'
 import { isCardEdited } from './cardEdits'
 import type { CardToSave } from './repository'
@@ -40,11 +47,17 @@ export function ReviewCard({ card, onDiscard, onKeep, sourcePages }: ReviewCardP
     onKeep({ ...draft, isEdited: isCardEdited(card, draft) })
   }
 
+  // `sourcePages` holds every page of the pantry, so it decides the pantry's mode.
+  const pantryMode = generationModeForPages(sourcePages)
+  const isCloudEnhanced = displayModeFor(draft, pantryMode) === 'cloud-enhanced'
+  const textSource = citedTextSource(draft, sourcePages)
+  const evidenceSource = textSource ? ` · ${TEXT_SOURCE_LABELS[textSource]}` : ''
+
   return (
     <article className="review-card">
       <div className="review-card-topline">
-        <span className="local-badge">On-device</span>
-        <span>Evidence: p. {draft.sourcePage}</span>
+        <span className={isCloudEnhanced ? 'local-badge cloud' : 'local-badge'}>{cardOriginLabel(draft, pantryMode)}</span>
+        <span>Evidence: p. {draft.sourcePage}{evidenceSource}</span>
       </div>
       <label className="field-label" htmlFor={`question-${draft.id}`}>Question</label>
       <textarea id={`question-${draft.id}`} onChange={(event) => setDraft((current) => ({ ...current, question: event.target.value }))} value={draft.question} />
@@ -58,7 +71,7 @@ export function ReviewCard({ card, onDiscard, onKeep, sourcePages }: ReviewCardP
         ))}
       </div>
       <div className="evidence-box">
-        <span>Source quote · p. {draft.sourcePage}</span>
+        <span>Source quote · p. {draft.sourcePage}{evidenceSource}</span>
         <textarea aria-label="Source quote" onChange={(event) => setDraft((current) => ({ ...current, sourceQuote: event.target.value }))} value={draft.sourceQuote} />
       </div>
       {errors.length > 0 ? <p className="form-error" role="alert">{errors.join(' ')}</p> : null}

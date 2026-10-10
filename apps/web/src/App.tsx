@@ -8,8 +8,12 @@ import {
   type LocalAiStatus,
 } from './features/local-ai/localAiClient'
 import { MAX_CARDS_PER_RUN, MAX_SELECTED_PAGES } from './features/local-ai/policy'
-import type { GeneratedCard } from './features/local-ai/types'
+import { formatPageList, generationModeForPages, hasUsablePageText, pageTextLabel } from './features/local-ai/provenance'
+import type { GeneratedCard, SourcePage } from './features/local-ai/types'
+import { CLOUD_OCR_MODEL_NAME } from './features/pantries/CloudOcrConsentDialog'
 import { KeptCard } from './features/pantries/KeptCard'
+import { releaseLocalOcr } from './features/pantries/localOcrLoader'
+import { PageOcrPanel, type OcrTextSource } from './features/pantries/PageOcrPanel'
 import { GenerationExperience } from './features/pantries/GenerationExperience'
 import { ModelStatusRow } from './features/pantries/ModelStatusRow'
 import { deriveGenerationView, isGenerationBusy } from './features/pantries/generationStages'
@@ -65,6 +69,18 @@ const studyButtonLabel = (cardCount: number) =>
 
 const titleFromFileName = (name: string) => name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ').trim()
 
+/** "2 text pages found", plus how many pages have no text layer when some do not. */
+const textPagesFoundLabel = (textPages: number, pagesWithoutText: number) => {
+  const found = `${textPages} text ${textPages === 1 ? 'page' : 'pages'} found`
+  return pagesWithoutText > 0 ? `${found} · ${pagesWithoutText} without a text layer` : found
+}
+
+/** Chip style for a page's text source: Cloud OCR and missing text stand out. */
+const pageSourceChipClass = (page: SourcePage) => {
+  if (!hasUsablePageText(page)) return 'local-badge needs-text'
+  return page.textSource === 'cloud-ocr' ? 'local-badge cloud' : 'local-badge'
+}
+
 /** The merged Step 02 sub-view: choose pages, watch Rokki work, then review. */
 type BatchView = 'select' | 'generating' | 'review'
 
@@ -107,8 +123,9 @@ function AppRoutes() {
 
   const routePantryId = matchPath('/pantries/:pantryId', location.pathname)?.params.pantryId
   const activePantryId = routePantryId === 'import' || routePantryId === 'manual' ? undefined : routePantryId
-  const isStudying =
-    matchPath('/learn/practice/:pantryId', location.pathname) !== null || matchPath('/learn/quiz/:pantryId', location.pathname) !== null
+  const studyPantryId =
+    matchPath('/learn/practice/:pantryId', location.pathname)?.params.pantryId ?? matchPath('/learn/quiz/:pantryId', location.pathname)?.params.pantryId
+  const isStudying = studyPantryId !== undefined
 
   const refreshPantries = async () => {
     setSummaries(await pantryRepository.listPantries())
@@ -167,7 +184,8 @@ function AppRoutes() {
 
   return (
     <div className={isStudying ? 'app-shell is-studying' : 'app-shell'}>
-      <Sidebar activePantryId={activePantryId} onNewSource={startPdfImport} summaries={summaries} />
+      {/* While studying, the studied pantry decides the Local Private or Cloud Enhanced footer. */}
+      <Sidebar activePantryId={activePantryId ?? studyPantryId} onNewSource={startPdfImport} summaries={summaries} />
 
       <main className="main-content">
         {error ? <div className="global-error" role="alert"><Icon icon={AlertCircleIcon} /><span>{error}</span></div> : null}
@@ -253,14 +271,33 @@ function ImportWorkspace({
   const [selectedPages, setSelectedPages] = useState<number[]>([])
   const [isPagePickerOpen, setIsPagePickerOpen] = useState(false)
   const [isReading, setIsReading] = useState(false)
+  const [isOcrBusy, setIsOcrBusy] = useState(false)
   const sourceRef = useRef<PdfSource | undefined>(undefined)
   const importRequest = useRef(0)
   const sourcePages = pdfSource?.pages ?? []
+  const selectedSourcePages = sourcePages.filter((page) => selectedPages.includes(page.pageNumber))
+  // Scanned or image-only pages need OCR before they can become cards.
+  const pagesNeedingText = selectedSourcePages.filter((page) => !hasUsablePageText(page))
+  const textPageCount = sourcePages.filter(hasUsablePageText).length
+  const cloudOcrPageNumbers = sourcePages.filter((page) => page.textSource === 'cloud-ocr').map((page) => page.pageNumber)
+  // The pantry stores only the selected pages, so they decide its mode.
+  const importMode = generationModeForPages(selectedSourcePages)
 
   useEffect(() => () => {
     importRequest.current += 1
     void sourceRef.current?.destroy()
+    void releaseLocalOcr()
   }, [])
+
+  /** OCR text replaces the page's empty text layer and records where it came from. */
+  const applyOcrText = (pageNumber: number, text: string, textSource: OcrTextSource, document: PdfSource['document']) => {
+    setPdfSource((current) => (current && current.document === document
+      ? {
+          ...current,
+          pages: current.pages.map((page) => (page.pageNumber === pageNumber ? { ...page, text, textSource } : page)),
+        }
+      : current))
+  }
 
   // Runs in the same task as the "Create from a PDF" click, so the browser
   // still treats opening the file picker as user-initiated. If the learner
@@ -319,6 +356,10 @@ function ImportWorkspace({
       onError('Choose a text-based PDF and select one to three pages first.')
       return
     }
+    if (pagesNeedingText.length > 0) {
+      onError('Read the selected scanned pages with OCR, or choose pages that have text, before creating the pantry.')
+      return
+    }
 
     try {
       const selected = selectSourcePages(sourcePages, selectedPages)
@@ -337,10 +378,21 @@ function ImportWorkspace({
     <section className="welcome-workspace import-workspace">
       <h1>Import a PDF</h1>
 
-      <div className="privacy-callout">
-        <strong>Your material stays here.</strong>
-        <span>No upload. No account. No cloud generation in this MVP.</span>
-      </div>
+      {cloudOcrPageNumbers.length > 0 ? (
+        <div className="privacy-callout cloud-callout">
+          <strong>Cloud Enhanced.</strong>
+          <span>
+            With your consent, images of {formatPageList(cloudOcrPageNumbers)} were sent through Traccoon’s server to {CLOUD_OCR_MODEL_NAME} on
+            Baidu AI Studio. Cards are still generated on this device.
+          </span>
+        </div>
+      ) : (
+        <div className="privacy-callout">
+          <strong>Your material stays here.</strong>
+          <span>No upload. No account. No cloud generation in this MVP.</span>
+          <span>Scanned pages can be read with on-device OCR. Cloud OCR is optional and always asks first.</span>
+        </div>
+      )}
 
       <div className="import-panel">
         <div className="step-label">01 / BRING A SOURCE</div>
@@ -350,7 +402,11 @@ function ImportWorkspace({
             ? <RokkiLoader mode="preparing" showLabel={false} size="sm" title="Reading your PDF on this device." />
             : <span className="file-icon"><Icon icon={FileUploadIcon} size={32} /></span>}
           <strong>{isReading ? 'Reading local PDF…' : sourceName || 'Choose a PDF'}</strong>
-          <small>{sourceName ? `${sourcePages.length} text pages found` : 'Text-based PDF only. Scanned PDFs need OCR, which is not in this demo.'}</small>
+          <small>
+            {sourceName
+              ? textPagesFoundLabel(textPageCount, sourcePages.length - textPageCount)
+              : 'Text-based PDFs work right away. Scanned pages can be read with OCR after you select them.'}
+          </small>
         </label>
 
         {sourcePages.length > 0 ? (
@@ -362,12 +418,33 @@ function ImportWorkspace({
                 <strong>Pages for the first card batch</strong>
                 <p>{selectedPages.length ? `Selected pages: ${selectedPages.join(', ')}` : 'Preview your PDF and choose 1–3 pages.'}</p>
               </div>
-              <button className="secondary-button" onClick={() => setIsPagePickerOpen(true)} type="button">
+              <button className="secondary-button" disabled={isOcrBusy} onClick={() => setIsPagePickerOpen(true)} type="button">
                 {selectedPages.length ? 'Edit page selection' : 'Select pages'}
               </button>
             </div>
-            <button className="primary-button" disabled={selectedPages.length === 0} onClick={() => void createPantry()} type="button">
-              Create local pantry <Icon icon={ArrowRight02Icon} />
+            {selectedSourcePages.length > 0 ? (
+              <ul aria-label="Text source of each selected page" aria-live="polite" className="page-source-list">
+                {selectedSourcePages.map((page) => (
+                  <li className={pageSourceChipClass(page)} key={page.id}>p. {page.pageNumber} · {pageTextLabel(page)}</li>
+                ))}
+              </ul>
+            ) : null}
+            {pdfSource && pagesNeedingText.length > 0 ? (
+              <PageOcrPanel
+                document={pdfSource.document}
+                onBusyChange={setIsOcrBusy}
+                onPageText={(pageNumber, text, textSource) => applyOcrText(pageNumber, text, textSource, pdfSource.document)}
+                onStartManual={onStartManual}
+                pages={pagesNeedingText}
+              />
+            ) : null}
+            <button
+              className="primary-button"
+              disabled={selectedPages.length === 0 || pagesNeedingText.length > 0 || isOcrBusy}
+              onClick={() => void createPantry()}
+              type="button"
+            >
+              {importMode === 'cloud-enhanced' ? 'Create Cloud Enhanced pantry' : 'Create local pantry'} <Icon icon={ArrowRight02Icon} />
             </button>
           </div>
         ) : null}
@@ -439,6 +516,10 @@ function PantryWorkspace({
   const [showManualAuthor, setShowManualAuthor] = useState(false)
   const [confirmingDeletion, setConfirmingDeletion] = useState(false)
   const hasPdfSource = pantry.sourcePages.length > 0
+  // Any page read by Cloud OCR makes the whole pantry and its cards Cloud Enhanced.
+  const pantryMode = generationModeForPages(pantry.sourcePages)
+  const isCloudEnhanced = pantryMode === 'cloud-enhanced'
+  const cloudOcrPageNumbers = pantry.sourcePages.filter((page) => page.textSource === 'cloud-ocr').map((page) => page.pageNumber)
   const [attemptSummary, setAttemptSummary] = useState<AttemptSummary>()
   const [attemptLoadError, setAttemptLoadError] = useState(false)
 
@@ -491,7 +572,9 @@ function PantryWorkspace({
         setGenerationStatus({ stage: 'error', detail: 'Rokki couldn’t verify the generated questions against your pages.' })
         return
       }
-      setCandidates(result.cards)
+      // The generator runs on this device and marks cards Local Private. Cards
+      // from a pantry with Cloud OCR text take the pantry's Cloud Enhanced mode.
+      setCandidates(result.cards.map((card) => ({ ...card, generationMode: pantryMode })))
       // A brief success beat so the filled segments read before review opens.
       await delay(SUCCESS_TRANSITION_MS)
       if (!controller.signal.aborted) {
@@ -544,7 +627,7 @@ function PantryWorkspace({
   }
 
   const saveManualCard = async (card: GeneratedCard) => {
-    await pantryRepository.saveCards(pantry.id, [card])
+    await pantryRepository.saveCards(pantry.id, [{ ...card, generationMode: pantryMode }])
     setShowManualAuthor(false)
     await onPantryChange()
   }
@@ -553,7 +636,7 @@ function PantryWorkspace({
     <section className="workspace">
       <header className="workspace-header">
         <div>
-          <div className="eyebrow"><span /> LOCAL PANTRY</div>
+          <div className="eyebrow"><span /> {isCloudEnhanced ? 'CLOUD ENHANCED PANTRY' : 'LOCAL PANTRY'}</div>
           <h1>{pantry.title}</h1>
           <p>
             {hasPdfSource
@@ -576,7 +659,10 @@ function PantryWorkspace({
 
       {confirmingDeletion ? (
         <div className="delete-confirmation" role="alert">
-          <span>Delete this pantry, its source text, cards, and answer attempts from this browser?</span>
+          <span>
+            Delete this pantry, its source text, cards, and answer attempts from this browser?
+            {isCloudEnhanced ? ' This removes the copy on this device only; it can’t recall page images already sent to Cloud OCR.' : null}
+          </span>
           <div>
             <button className="secondary-button" onClick={() => setConfirmingDeletion(false)} type="button">Keep pantry</button>
             <button className="danger-button" onClick={() => void onDelete()} type="button">Confirm local deletion</button>
@@ -597,7 +683,11 @@ function PantryWorkspace({
 
             {batchView === 'select' ? (
               <>
-                <p className="panel-copy">Runs in this browser on this laptop. Nothing is uploaded. Each suggestion must match a quote on its page before you can keep it.</p>
+                <p className="panel-copy">
+                  {isCloudEnhanced
+                    ? `Runs in this browser on this laptop. Text for ${formatPageList(cloudOcrPageNumbers)} came from Cloud OCR with your consent, so this pantry and its cards are Cloud Enhanced. Each suggestion must match a quote on its page before you can keep it.`
+                    : 'Runs in this browser on this laptop. Nothing is uploaded. Each suggestion must match a quote on its page before you can keep it.'}
+                </p>
                 <ModelStatusRow status={generationStatus} />
                 <fieldset className="page-picker compact">
                   <legend>Source pages</legend>
@@ -605,7 +695,7 @@ function PantryWorkspace({
                     {pantry.sourcePages.map((page) => (
                       <label key={page.id}>
                         <input checked={selectedPages.includes(page.pageNumber)} onChange={() => togglePage(page.pageNumber)} type="checkbox" />
-                        <span>p. {page.pageNumber}</span>
+                        <span>p. {page.pageNumber} · {pageTextLabel(page)}</span>
                       </label>
                     ))}
                   </div>
@@ -710,7 +800,7 @@ function PantryWorkspace({
               <div className="empty-state">{hasPdfSource ? 'Nothing kept yet. You can review local suggestions or create a card by hand.' : 'No cards yet. Add your first card by hand.'}</div>
             ) : (
               <div className="kept-grid">
-                {pantry.cards.map((card) => <KeptCard card={card} key={card.id} />)}
+                {pantry.cards.map((card) => <KeptCard card={card} key={card.id} sourcePages={pantry.sourcePages} />)}
               </div>
             )}
           </section>

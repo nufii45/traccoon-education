@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable, type Table } from 'dexie'
-import type { GeneratedCard, SourcePage } from '../features/local-ai/types'
+import { generationModeForPages } from '../features/local-ai/provenance'
+import type { GeneratedCard, GenerationMode, SourcePage } from '../features/local-ai/types'
 import type { TreatId } from '../features/treats/catalog'
 import {
   awardQuizIngredient,
@@ -42,6 +43,8 @@ export interface PantrySummary {
   cardCount: number
   createdAt: string
   updatedAt: string
+  /** `cloud-enhanced` once any stored page's text came from Cloud OCR. Set by {@link LocalPantryRepository.list}. */
+  generationMode?: GenerationMode
 }
 
 export interface Pantry extends Omit<PantryRecord, 'updatedAt'> {
@@ -124,12 +127,21 @@ const now = () => new Date().toISOString()
 const createId = () =>
   globalThis.crypto?.randomUUID?.() ?? `local-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-// Store only declared fields so nothing extra (for example PDF bytes) reaches IndexedDB.
-const toPageRecord = (page: SourcePage): SourcePage => ({
-  id: page.id,
-  pageNumber: page.pageNumber,
-  text: page.text,
-})
+// Store only declared fields so nothing extra (for example PDF bytes or page
+// images) reaches IndexedDB. The text source is kept with the text it describes.
+const toPageRecord = (page: SourcePage): SourcePage => {
+  const record: SourcePage = {
+    id: page.id,
+    pageNumber: page.pageNumber,
+    text: page.text,
+  }
+
+  if (page.textSource !== undefined) {
+    record.textSource = page.textSource
+  }
+
+  return record
+}
 
 const toStoredCard = (pantryId: string, card: CardToSave): StoredCard => {
   const stored: StoredCard = {
@@ -329,6 +341,7 @@ export class LocalPantryRepository {
           cardCount: await this.db.pantryCards.where('pantryId').equals(pantry.id).count(),
           createdAt: pantry.createdAt,
           updatedAt: pantry.updatedAt,
+          generationMode: generationModeForPages(pantry.sourcePages),
         })),
       )
     })

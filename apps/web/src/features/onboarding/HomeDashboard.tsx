@@ -140,6 +140,7 @@ export function HomeDashboard({
                   <span className={styles.pantryMeta}>
                     {pantry.cardCount} {pantry.cardCount === 1 ? 'card' : 'cards'} ·{' '}
                     {pantry.sourceName}
+                    {pantry.generationMode === 'cloud-enhanced' ? ' · Cloud Enhanced' : null}
                   </span>
                 </button>
               </li>

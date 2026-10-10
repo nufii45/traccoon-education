@@ -172,6 +172,32 @@
   color: var(--color-primary-hover);
 }
 
+/* Text source chip: PDF text, On-device OCR, Cloud OCR, or No text layer. */
+.textSource {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-muted);
+  color: var(--color-copy);
+  font: 700 var(--text-label) / 1.3 var(--font-sans);
+}
+
+.gridCell .textSource {
+  margin-top: var(--space-1);
+}
+
+.needsText {
+  background: var(--color-warning-surface);
+  color: var(--color-neutral);
+}
+
+.cloudText {
+  background: var(--color-info-surface);
+  color: var(--color-info);
+}
+
 .previewMessage {
   display: grid;
   place-items: center;

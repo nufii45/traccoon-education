@@ -1,8 +1,15 @@
 // Cloudflare Workers Builds runs `npx wrangler preview` from the repository
-// root with no install or build step, so this config builds apps/web itself
-// and serves its Vite output as a static-assets-only Worker.
+// root with no install or build step, so this config builds apps/web itself.
+// The Worker serves the Vite output as static assets with single-page
+// fallback and runs apps/web/server/worker.ts first only for /api/* (the
+// same-origin Cloud OCR proxy).
+//
+// The PaddleOCR token is a secret, never a var. Set it outside the repository:
+//   npx wrangler secret put PADDLEOCR_ACCESS_TOKEN
+//   npx wrangler preview base-config secret put PADDLEOCR_ACCESS_TOKEN  (Previews)
 {
   "name": "traccoon-education",
+  "main": "./apps/web/server/worker.ts",
   "compatibility_date": "2026-10-09",
   "preview_urls": true,
   "build": {
@@ -13,7 +20,19 @@
   },
   "assets": {
     "directory": "./apps/web/dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
   },
-  "previews": {}
+  "vars": {
+    "PADDLEOCR_JOB_URL": "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs",
+    "PADDLEOCR_MODEL": "PaddleOCR-VL-1.6"
+  },
+  // Previews do not inherit top-level vars, so they repeat them here.
+  "previews": {
+    "vars": {
+      "PADDLEOCR_JOB_URL": "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs",
+      "PADDLEOCR_MODEL": "PaddleOCR-VL-1.6"
+    }
+  }
 }

@@ -17,6 +17,7 @@
     "@hugeicons/core-free-icons": "4.3.5",
     "@hugeicons/react": "1.1.10",
     "@mlc-ai/web-llm": "0.2.85",
+    "@paddleocr/paddleocr-js": "0.4.2",
     "dexie": "^4.4.6",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.2.8",

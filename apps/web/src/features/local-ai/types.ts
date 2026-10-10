@@ -1,11 +1,20 @@
-export type GenerationMode = 'local-private'
+/**
+ * `cloud-enhanced` marks pantries and cards whose page text came from Cloud
+ * OCR. Cards are still generated on this device in both modes.
+ */
+export type GenerationMode = 'local-private' | 'cloud-enhanced'
 
 export type GenerationMethod = 'webllm' | 'manual'
+
+/** Where a page's text came from: the PDF's own text layer or OCR of its rendered image. */
+export type TextSource = 'text-layer' | 'local-ocr' | 'cloud-ocr'
 
 export interface SourcePage {
   id: string
   pageNumber: number
   text: string
+  /** Missing on pages saved before OCR existed; those came from the text layer. */
+  textSource?: TextSource
 }
 
 export interface SourceChunk {

@@ -1,6 +1,7 @@
 import { FileSearchIcon, FileNotFoundIcon } from '@hugeicons/core-free-icons'
 import { Dialog } from '../../components/Dialog/Dialog'
 import { Icon } from '../../components/Icon/Icon'
+import { TEXT_SOURCE_LABELS, textSourceOf } from '../local-ai/provenance'
 import type { SourcePage } from '../local-ai/types'
 import type { StoredCard } from '../pantries/repository'
 import { findQuoteHighlight } from './quoteHighlight'
@@ -21,10 +22,11 @@ interface SourceViewProps {
 export function SourceView({ card, sourcePages, sourceName, onClose }: SourceViewProps) {
   const page = card ? sourcePages.find((candidate) => candidate.pageNumber === card.sourcePage) : undefined
   const highlight = card && page ? findQuoteHighlight(page.text, card.sourceQuote) : undefined
+  const textSource = page ? textSourceOf(page) : undefined
 
   return (
     <Dialog
-      eyebrow="Source"
+      eyebrow={textSource ? `Source · ${TEXT_SOURCE_LABELS[textSource]}` : 'Source'}
       footer={<button className={`primary-button ${styles.tapTarget}`} onClick={onClose} type="button">Back to card</button>}
       isOpen={card !== undefined}
       onClose={onClose}
@@ -49,6 +51,11 @@ export function SourceView({ card, sourcePages, sourceName, onClose }: SourceVie
                 </span>
               </>
             )}
+            {textSource && textSource !== 'text-layer' ? (
+              <span>
+                This page’s text was read by {TEXT_SOURCE_LABELS[textSource]}, so a word may be misread. Compare it with your PDF if something looks off.
+              </span>
+            ) : null}
           </div>
           <div className={styles.pageText}>
             {highlight ? (

@@ -1,0 +1,5 @@
+allowBuilds:
+  # Pulled in by @paddleocr/paddleocr-js through onnxruntime-web. Its only
+  # install script prints a version-scheme warning, so it is denied; pnpm 11
+  # fails installs while a build script is left unreviewed.
+  protobufjs: false
